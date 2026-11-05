@@ -1,0 +1,102 @@
+@startuml
+
+skinparam sequenceArrowThickness 1.5
+skinparam roundcorner 8
+skinparam responseMessageBelowArrow true
+skinparam sequenceGroupBorderThickness 1.5
+
+skinparam participant {
+    BackgroundColor #EEF4FF
+    BorderColor     #4A7CFF
+    FontStyle       Bold
+}
+skinparam actor {
+    BackgroundColor #FEFEFE
+    BorderColor     #333333
+}
+skinparam sequence {
+    LifeLineBorderColor  #888888
+    GroupBorderColor     #888888
+    GroupBodyBackgroundColor #FAFAFA
+    DividerBackgroundColor   #E8E8E8
+}
+
+actor "Người dùng" as User
+participant "Client" as client
+participant "FileController" as fileController
+participant "UserController" as controller
+participant "FileService" as fileService
+participant "UserService" as service
+participant "UserRepo" as repo
+database "Database (MySQL)" as DB
+
+User -> client: updateProfile(displayName,\navatarURL)
+activate client
+
+alt Định dạng file không được hỗ trợ
+    client --> User : Thông báo lỗi:"Định dạng file\nkhông được hỗ trợ"
+else File vượt quá kích thước quy định
+    client --> User : Thông báo lỗi:"File vượt quá\nkích thước quy định"
+else Tên hiển thị không hợp lệ
+    client --> User : Thông báo lỗi:"Tên hiển thị không hợp lệ"
+else else
+    client -> fileController: requestUploadAvatar(fileName,\ncontentType)
+    activate fileController
+
+    fileController -> fileService: generatePresignedURL(fileName,\ncontentType)
+    activate fileService
+
+    fileService --> fileController: presignedURL
+    deactivate fileService
+
+    fileController --> client: apiResponse
+    deactivate fileController
+
+    client -> controller : updateProfile(displayName,\navatarURL)
+    activate controller
+
+    controller -> service : validateUpdateProfile(\ndisplayName, avatarURL)
+    activate service
+
+    service -> fileService : validatePresignedRL(avatarURL)
+    activate fileService
+
+    alt avatarURL không hợp lệ
+        fileService --> controller : avatarValidationError
+        deactivate fileService
+
+        controller --> client : apiResponse
+        client --> User : Thông báo lỗi:\n"Ảnh đại diện không hợp lệ"
+
+    else displayName không hợp lệ
+        service --> controller : displayNameValidationError
+        controller --> client : apiResponse
+        client --> User : Thông báo lỗi:\n"Tên hiển thị không hợp lệ"
+
+    else else
+        service -> repo : updateUser(user.id,\ndisplayName, avatarURL)
+        activate repo
+
+        repo -> DB : updateUser(user.id,\ndisplayName, avatarURL)
+        activate DB
+
+        DB --> repo : result
+        deactivate DB
+
+        repo --> service : result
+        deactivate repo
+
+        service --> controller : result
+        deactivate service
+
+        controller --> client : apiResponse
+        deactivate controller
+
+        client --> User : Thông báo:\n"Cập nhật thông tin thành công",\nLàm mới giao diện
+
+        deactivate service
+        deactivate controller
+        deactivate client
+    end
+end
+@enduml

@@ -1,0 +1,96 @@
+package com.elingo.user.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.SuperBuilder;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import org.jspecify.annotations.Nullable;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
+import com.elingo.common.entity.BaseEntity;
+
+@Entity
+@Table(
+        name = "users",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_user_username", columnNames = "username"),
+                @UniqueConstraint(name = "uk_user_email", columnNames = "email"),
+                @UniqueConstraint(name = "uk_user_google_provider_id", columnNames = "google_provider_id")
+        }
+)
+@Data
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
+@AllArgsConstructor
+@NoArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public class User extends BaseEntity implements UserDetails  {
+    @Column(nullable = false)
+    String email;
+
+    @Column(nullable = false)
+    String username;
+
+    @Column(name = "password_hash")
+    String passwordHash;
+
+    @Column(name = "full_name", nullable = false, length = 150)
+    String fullName;
+
+    @Column(name = "google_provider_id")
+    String googleProviderId;
+
+    @Column(name = "avatar_url", length = 500)
+    String avatarUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    Role role = Role.USER;
+
+    @Column(name = "is_verified", nullable = false)
+    @Builder.Default
+    Boolean isVerified = false;
+
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    Boolean isActive = true;
+
+    @Column(name = "ban_reason", length = 500)
+    String banReason;
+
+    @Column(name = "password_changed_at")
+    LocalDateTime passwordChangedAt;
+
+    @Column(name = "username_changed_at")
+    LocalDateTime usernameChangedAt;
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+    }
+
+    @Override
+    public @Nullable String getPassword() {
+        return passwordHash;
+    }
+
+    public boolean canChangeUsername() {
+        return usernameChangedAt == null || !usernameChangedAt.isAfter(LocalDateTime.now().minusDays(30));
+    }
+}

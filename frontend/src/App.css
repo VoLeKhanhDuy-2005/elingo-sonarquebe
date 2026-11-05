@@ -1,0 +1,41 @@
+/* ============================================================
+   App.css — App-level styles
+   Chỉ chứa styles cho layout shell của App (main, placeholder page).
+   Styles của từng page/component đặt trong file CSS riêng.
+   ============================================================ */
+
+/* ── App main content area ── */
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: var(--z-base);
+}
+
+/* ── Placeholder page (xóa khi pages thật được build) ── */
+.placeholder-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60svh;
+  padding: var(--spacing-lg);
+}
+
+.placeholder-page__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--spacing-3xl);
+  border-radius: var(--radius-card-lg);
+  max-width: 480px;
+  width: 100%;
+  gap: var(--spacing-sm);
+}
+
+.placeholder-page__icon {
+  font-size: 48px;
+  color: var(--color-on-surface-variant);
+  margin-bottom: var(--spacing-sm);
+}

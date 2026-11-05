@@ -1,0 +1,80 @@
+@startuml
+
+skinparam sequenceArrowThickness 1.5
+skinparam roundcorner 8
+skinparam responseMessageBelowArrow true
+skinparam sequenceGroupBorderThickness 1.5
+
+skinparam participant {
+    BackgroundColor #EEF4FF
+    BorderColor     #4A7CFF
+    FontStyle       Bold
+}
+skinparam actor {
+    BackgroundColor #FEFEFE
+    BorderColor     #333333
+}
+skinparam sequence {
+    LifeLineBorderColor  #888888
+    GroupBorderColor     #888888
+    GroupBodyBackgroundColor #FAFAFA
+    DividerBackgroundColor   #E8E8E8
+}
+
+actor "Người dùng" as User
+participant "Client" as client
+participant "UserController" as controller
+participant "UserService" as service
+participant "UserRepo" as repo
+participant "OtpService" as otpService
+database "Database" as DB
+
+User -> client : updateEmail(request)
+activate client
+
+alt Để trống OTP
+    client --> User: Thông báo lỗi:\n"Để trống OTP"
+else else
+    client -> controller : updateEmail(request, userId)
+    activate controller
+
+    controller -> service : updateEmail(userId, request)
+    activate service
+
+    alt Mật khẩu xác nhận sai
+        service --> controller : PasswordIncorrectError
+        controller --> client : apiResponse
+        client --> User : Thông báo lỗi:\n"Mật khẩu xác nhận sai"
+    else OTP sai hoặc hết hạn
+        service --> controller : OTPInvalidError
+        controller --> client : apiResponse
+        client --> User : Thông báo lỗi:\n"OTP sai hoặc hết hạn"
+    else else
+        service -> otpService : verifyOtp(type, newEmail, inputOtp)
+        activate otpService
+        otpService --> service : result
+        deactivate otpService
+
+        service -> repo : save(user)
+        activate repo
+
+        repo -> DB : save(user)
+        activate DB
+
+        DB --> repo : result
+        deactivate DB
+
+        repo --> service : result
+        deactivate repo
+
+        service --> controller : result
+        deactivate service
+
+        controller --> client : apiResponse
+        deactivate controller
+
+        client --> User : Thông báo: "Cập nhật\nemail thành công"
+        deactivate client
+    end
+end
+@enduml

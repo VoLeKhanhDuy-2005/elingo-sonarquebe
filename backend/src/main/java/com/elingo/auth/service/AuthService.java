@@ -1,0 +1,33 @@
+package com.elingo.auth.service;
+
+import com.elingo.auth.dto.request.AuthenticationRequest;
+import com.elingo.auth.dto.request.GoogleAuthRequest;
+import com.elingo.auth.dto.request.RegisterRequest;
+import com.elingo.auth.dto.request.ResendVerificationOtpRequest;
+import com.elingo.auth.dto.request.ResetPasswordRequest;
+import com.elingo.auth.dto.request.SendResetPasswordOtpRequest;
+import com.elingo.auth.dto.request.VerifyAccountRequest;
+import com.elingo.auth.dto.response.LoginResult;
+
+import com.elingo.user.dto.response.UserMeResponse;
+import org.springframework.http.ResponseCookie;
+
+public interface AuthService {
+    UserMeResponse register(RegisterRequest request);
+
+    LoginResult login(AuthenticationRequest request);
+
+    LoginResult authenticateWithGoogle(GoogleAuthRequest request);
+
+    LoginResult refreshToken(String refreshToken);
+
+    ResponseCookie createLogoutCookie();
+
+    void sendResetPasswordOtp(SendResetPasswordOtpRequest request);
+
+    void resetPassword(ResetPasswordRequest request);
+
+    void verifyAccount(VerifyAccountRequest request);
+
+    void resendVerificationOtp(ResendVerificationOtpRequest request);
+}

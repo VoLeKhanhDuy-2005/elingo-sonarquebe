@@ -1,0 +1,71 @@
+@startuml
+
+skinparam sequenceArrowThickness 1.5
+skinparam roundcorner 8
+skinparam responseMessageBelowArrow true
+skinparam sequenceGroupBorderThickness 1.5
+
+skinparam participant {
+    BackgroundColor #EEF4FF
+    BorderColor     #4A7CFF
+    FontStyle       Bold
+}
+skinparam actor {
+    BackgroundColor #FEFEFE
+    BorderColor     #333333
+}
+skinparam sequence {
+    LifeLineBorderColor  #888888
+    GroupBorderColor     #888888
+    GroupBodyBackgroundColor #FAFAFA
+    DividerBackgroundColor   #E8E8E8
+}
+
+actor "Người dùng" as User
+participant "Client" as client
+participant "UserController" as controller
+participant "UserService" as service
+participant "EmailService" as mailService
+participant "OtpService" as otpService
+
+User -> client : sendOTPUpdateEmail(request)
+activate client
+
+alt Email không đúng định dạng
+    client --> User : Thông báo lỗi:\n"Email không đúng định dạng"
+else Email đúng định dạng
+    client -> controller : sendOTPUpdateEmail(request, userId)
+    activate controller
+
+    controller -> service : sendOTPUpdateEmail(userId, request)
+    activate service
+
+    alt Email mới trùng email cũ
+        service --> controller : EmailUnchangedError
+        controller --> client : apiResponse
+        client --> User : Thông báo lỗi:\n"Email mới trùng email cũ"
+    else Email đã tồn tại
+        service --> controller : EmailExistedError
+        controller --> client : apiResponse
+        client --> User : Thông báo lỗi:\n"Email đã tồn tại"
+    else else
+        service -> otpService : generateAndSaveOtp(type, newEmail)
+        activate otpService
+
+        otpService --> service : newEmailOtp
+        deactivate otpService
+
+        service ->> mailService : sendEmail(newEmail, username,\notpTemplate, newEmailOtp, subject)
+        activate mailService
+        deactivate mailService
+
+        service --> controller : result
+        deactivate service
+        controller --> client : apiResponse
+        deactivate controller
+
+        client --> User : Thông báo:\n"Gửi OTP thành công"
+        deactivate client
+    end
+end
+@enduml

@@ -1,0 +1,81 @@
+package com.elingo.learning.flashcard.entity;
+
+import com.elingo.user.entity.User;
+import com.elingo.vocabulary.entity.Card;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.SuperBuilder;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.ToString;
+import lombok.experimental.FieldDefaults;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import com.elingo.common.entity.BaseEntity;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
+@Entity
+@Table(
+        name = "user_card_states",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_user_card", columnNames = {"user_id", "card_id"})
+        },
+        indexes = {
+                @Index(name = "idx_due_review", columnList = "user_id, flags_hidden, srs_next_review_at")
+        }
+)
+@Data
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
+@AllArgsConstructor
+@NoArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public class UserCardState extends BaseEntity {
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "card_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    Card card;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    User user;
+
+    @Column(name = "srs_ease_factor", precision = 4, scale = 2, nullable = false)
+    @Builder.Default
+    BigDecimal srsEaseFactor = new BigDecimal("2.50");
+
+    @Column(name = "srs_interval", nullable = false)
+    @Builder.Default
+    Integer srsInterval = 0;
+
+    @Column(name = "srs_last_grade")
+    Short srsLastGrade;
+
+    @Column(name = "srs_next_review_at")
+    LocalDateTime srsNextReviewAt;
+
+    @Column(name = "flags_starred", nullable = false)
+    @Builder.Default
+    Boolean flagsStarred = false;
+
+    @Column(name = "flags_hidden", nullable = false)
+    @Builder.Default
+    Boolean flagsHidden = false;
+}
