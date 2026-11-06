@@ -64,5 +64,3 @@ dist-ssr
 .env
 *storybook.log
 storybook-static
-
-**/**.stories.jsx
