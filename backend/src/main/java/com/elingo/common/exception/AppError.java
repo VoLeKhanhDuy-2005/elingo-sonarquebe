@@ -189,6 +189,8 @@ public enum AppError {
     // 9. Community (Bài viết, Bình luận, Tương tác)
     // ==========================================
     POST_GROUP_NOT_FOUND("POST_GROUP_NOT_FOUND", "Post group not found", HttpStatus.NOT_FOUND),
+    POST_GROUP_ALREADY_EXISTS("POST_GROUP_ALREADY_EXISTS", "Post group name already exists", HttpStatus.CONFLICT),
+    POST_GROUP_IN_USE("POST_GROUP_IN_USE", "Cannot delete post group because it still contains posts", HttpStatus.CONFLICT),
     POST_NOT_FOUND("POST_NOT_FOUND", "Post not found", HttpStatus.NOT_FOUND),
     POST_ACCESS_DENIED("POST_ACCESS_DENIED", "You do not have permission to modify or delete this post", HttpStatus.FORBIDDEN),
     POST_NOT_PUBLISHED("POST_NOT_PUBLISHED", "Post is currently not published or has been hidden", HttpStatus.BAD_REQUEST),
@@ -228,6 +230,7 @@ public enum AppError {
     PREMIUM_PLAN_ALREADY_ACTIVE("PREMIUM_PLAN_ALREADY_ACTIVE", "Premium plan is already active", HttpStatus.BAD_REQUEST),
     PREMIUM_PLAN_ALREADY_INACTIVE("PREMIUM_PLAN_ALREADY_INACTIVE", "Premium plan is already inactive", HttpStatus.BAD_REQUEST),
     PAYMENT_TRANSACTION_NOT_REFUNDABLE("PAYMENT_TRANSACTION_NOT_REFUNDABLE", "Only successful payment transactions can be refunded", HttpStatus.BAD_REQUEST),
+    PAYMENT_TRANSACTION_REFUND_EXPIRED("PAYMENT_TRANSACTION_REFUND_EXPIRED", "Payment transaction has exceeded the allowed refund window", HttpStatus.BAD_REQUEST),
     PAYMENT_WEBHOOK_LOG_NOT_FOUND("PAYMENT_WEBHOOK_LOG_NOT_FOUND", "Payment webhook log not found", HttpStatus.NOT_FOUND),
 
     // ==========================================
