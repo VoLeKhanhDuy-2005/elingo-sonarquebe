@@ -6,7 +6,6 @@ import {
   BookOpenIcon,
   CreditCardIcon,
   MessageSquareIcon,
-  AlertTriangleIcon,
   UsersIcon,
   SettingsIcon,
   ChevronDownIcon,
@@ -15,6 +14,89 @@ import {
   ChevronLeftIcon,
 } from '../icons/AdminIcons';
 import styles from './AdminSidebar.module.css';
+
+const NAV_ITEMS = [
+  {
+    type: 'link',
+    key: 'dashboard',
+    path: '/admin',
+    labelKey: 'sidebar.dashboard',
+    Icon: DashboardIcon,
+    isActive: (path) => path === '/admin' || path === '/admin/dashboard',
+  },
+  {
+    type: 'group',
+    key: 'content',
+    labelKey: 'sidebar.contentAndLearning',
+    Icon: BookOpenIcon,
+    matchPrefixes: ['/admin/decks', '/admin/lessons', '/admin/tags'],
+    items: [
+      { path: '/admin/decks', labelKey: 'sidebar.decks', matchPrefix: '/admin/decks' },
+      { path: '/admin/lessons', labelKey: 'sidebar.lessons', matchPrefix: '/admin/lessons' },
+      { path: '/admin/tags', labelKey: 'sidebar.tags', matchPrefix: '/admin/tags' },
+    ],
+  },
+  {
+    type: 'group',
+    key: 'billing',
+    labelKey: 'sidebar.premiumAndBilling',
+    Icon: CreditCardIcon,
+    matchPrefixes: ['/admin/plans', '/admin/transactions', '/admin/webhook-logs'],
+    items: [
+      { path: '/admin/plans', labelKey: 'sidebar.subscriptionPlans', matchPrefix: '/admin/plans' },
+      { path: '/admin/transactions', labelKey: 'sidebar.transactions', matchPrefix: '/admin/transactions' },
+      { path: '/admin/webhook-logs', labelKey: 'sidebar.webhookLogs', matchPrefix: '/admin/webhook-logs' },
+    ],
+  },
+  {
+    type: 'group',
+    key: 'community',
+    labelKey: 'sidebar.communityAndPosts',
+    Icon: MessageSquareIcon,
+    matchPrefixes: ['/admin/posts', '/admin/reports', '/admin/groups'],
+    items: [
+      { path: '/admin/posts', labelKey: 'sidebar.posts', matchPrefix: '/admin/posts' },
+      { path: '/admin/reports', labelKey: 'sidebar.reports', matchPrefix: '/admin/reports' },
+      { path: '/admin/groups', labelKey: 'sidebar.groups', matchPrefix: '/admin/groups' },
+    ],
+  },
+  {
+    type: 'link',
+    key: 'users',
+    path: '/admin/users',
+    labelKey: 'sidebar.users',
+    Icon: UsersIcon,
+    isActive: (path) => path.startsWith('/admin/users'),
+  },
+  {
+    type: 'group',
+    key: 'settings',
+    labelKey: 'sidebar.systemSettings',
+    Icon: SettingsIcon,
+    matchPrefixes: ['/admin/settings'],
+    items: [
+      {
+        path: '/admin/settings/configs',
+        labelKey: 'sidebar.systemConfigs',
+        matchExact: ['/admin/settings', '/admin/settings/configs'],
+      },
+      {
+        path: '/admin/settings/audit-logs',
+        labelKey: 'sidebar.auditLogs',
+        matchExact: ['/admin/settings/audit-logs'],
+      },
+    ],
+  },
+];
+
+const matchesGroup = (path, prefixes = []) => prefixes.some((prefix) => path.startsWith(prefix));
+
+const isSubItemActive = (path, subItem) => {
+  if (subItem.matchExact) {
+    return subItem.matchExact.includes(path);
+  }
+  return subItem.matchPrefix ? path.startsWith(subItem.matchPrefix) : false;
+};
 
 export default function AdminSidebar({
   currentPath,
@@ -26,15 +108,16 @@ export default function AdminSidebar({
   onCloseMobile,
 }) {
   const { t } = useTranslation('admin');
+  const normalizedPath = currentPath.split('?')[0];
 
-  // Quản lý trạng thái mở dropdown của từng nhóm module
-  const [openDropdowns, setOpenDropdowns] = useState({
-    content: currentPath.startsWith('/admin/decks') || currentPath.startsWith('/admin/tags'),
-    billing: false,
-    community: false,
-    users: currentPath.startsWith('/admin/users') || currentPath.startsWith('/admin/roles'),
-    settings: currentPath.startsWith('/admin/settings'),
-  });
+  const [openDropdowns, setOpenDropdowns] = useState(() =>
+    NAV_ITEMS.reduce((acc, item) => {
+      if (item.type === 'group') {
+        acc[item.key] = matchesGroup(normalizedPath, item.matchPrefixes);
+      }
+      return acc;
+    }, {}),
+  );
 
   const toggleDropdown = (key) => {
     if (isCollapsed) {
@@ -50,8 +133,6 @@ export default function AdminSidebar({
     setOpenDropdowns((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const isDashboardActive = currentPath === '/admin' || currentPath === '/admin/dashboard';
-
   const handleNav = (path) => {
     onNavigate(path);
     if (onCloseMobile) onCloseMobile();
@@ -59,7 +140,6 @@ export default function AdminSidebar({
 
   return (
     <>
-      {/* Backdrop trên màn hình di động */}
       {isMobileOpen && (
         <div className={styles.mobileBackdrop} onClick={onCloseMobile} aria-hidden="true" />
       )}
@@ -69,7 +149,6 @@ export default function AdminSidebar({
           isMobileOpen ? styles.mobileOpen : ''
         }`}
       >
-        {/* Brand Header */}
         <div className={styles.brandHeader}>
           <div className={styles.brandLogoBox}>E</div>
           {!isCollapsed && (
@@ -78,7 +157,6 @@ export default function AdminSidebar({
               <span className={styles.brandSubtitle}>{t('brandSub')}</span>
             </div>
           )}
-          {/* Nút đóng trên mobile */}
           <button
             type="button"
             className={styles.closeMobileBtn}
@@ -89,284 +167,70 @@ export default function AdminSidebar({
           </button>
         </div>
 
-        {/* Navigation List */}
         <nav className={styles.navContainer} aria-label={t('sidebar.navAria')}>
-          {/* 1. Dashboard */}
-          <button
-            type="button"
-            className={`${styles.navItem} ${isDashboardActive ? styles.active : ''}`}
-            onClick={() => handleNav('/admin')}
-            title={t('sidebar.dashboard')}
-          >
-            <DashboardIcon size={18} className={styles.navIcon} />
-            {!isCollapsed && <span className={styles.navLabel}>{t('sidebar.dashboard')}</span>}
-          </button>
+          {NAV_ITEMS.map((entry) => {
+            const IconComponent = entry.Icon;
 
-          {/* 2. Nội dung và học tập */}
-          <div className={styles.dropdownGroup}>
-            <button
-              type="button"
-              className={`${styles.navItem} ${styles.dropdownTrigger} ${
-                currentPath.startsWith('/admin/decks') || currentPath.startsWith('/admin/tags')
-                  ? styles.active
-                  : ''
-              }`}
-              onClick={() => toggleDropdown('content')}
-              title={t('sidebar.contentAndLearning')}
-            >
-              <BookOpenIcon size={18} className={styles.navIcon} />
-              {!isCollapsed && (
-                <>
-                  <span className={styles.navLabel}>{t('sidebar.contentAndLearning')}</span>
-                  <span className={styles.chevron}>
-                    {openDropdowns.content ? (
-                      <ChevronDownIcon size={14} />
-                    ) : (
-                      <ChevronRightIcon size={14} />
-                    )}
-                  </span>
-                </>
-              )}
-            </button>
-            {!isCollapsed && openDropdowns.content && (
-              <div className={styles.subMenuList}>
+            if (entry.type === 'link') {
+              const active = entry.isActive(normalizedPath);
+              return (
+                <button
+                  key={entry.key}
+                  type="button"
+                  className={`${styles.navItem} ${active ? styles.active : ''}`}
+                  onClick={() => handleNav(entry.path)}
+                  title={t(entry.labelKey)}
+                >
+                  <IconComponent size={18} className={styles.navIcon} />
+                  {!isCollapsed && <span className={styles.navLabel}>{t(entry.labelKey)}</span>}
+                </button>
+              );
+            }
+
+            const groupActive = matchesGroup(normalizedPath, entry.matchPrefixes);
+            const isOpen = Boolean(openDropdowns[entry.key]);
+
+            return (
+              <div key={entry.key} className={styles.dropdownGroup}>
                 <button
                   type="button"
-                  className={`${styles.subMenuItem} ${
-                    currentPath.startsWith('/admin/decks') ? styles.active : ''
+                  className={`${styles.navItem} ${styles.dropdownTrigger} ${
+                    groupActive ? styles.active : ''
                   }`}
-                  onClick={() => handleNav('/admin/decks')}
+                  onClick={() => toggleDropdown(entry.key)}
+                  title={t(entry.labelKey)}
                 >
-                  <span>{t('sidebar.decks')}</span>
+                  <IconComponent size={18} className={styles.navIcon} />
+                  {!isCollapsed && (
+                    <>
+                      <span className={styles.navLabel}>{t(entry.labelKey)}</span>
+                      <span className={styles.chevron}>
+                        {isOpen ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
+                      </span>
+                    </>
+                  )}
                 </button>
-                <button
-                  type="button"
-                  className={`${styles.subMenuItem} ${
-                    currentPath.startsWith('/admin/tags') ? styles.active : ''
-                  }`}
-                  onClick={() => handleNav('/admin/tags')}
-                >
-                  <span>{t('sidebar.tags')}</span>
-                </button>
+                {!isCollapsed && isOpen && (
+                  <div className={styles.subMenuList}>
+                    {entry.items.map((subItem) => (
+                      <button
+                        key={subItem.path}
+                        type="button"
+                        className={`${styles.subMenuItem} ${
+                          isSubItemActive(normalizedPath, subItem) ? styles.active : ''
+                        }`}
+                        onClick={() => handleNav(subItem.path)}
+                      >
+                        <span>{t(subItem.labelKey)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-
-          {/* 3. Premium và thanh toán (dropdown - chưa làm) */}
-          <div className={styles.dropdownGroup}>
-            <button
-              type="button"
-              className={`${styles.navItem} ${styles.dropdownTrigger}`}
-              onClick={() => toggleDropdown('billing')}
-              title={t('sidebar.premiumAndBilling')}
-            >
-              <CreditCardIcon size={18} className={styles.navIcon} />
-              {!isCollapsed && (
-                <>
-                  <span className={styles.navLabel}>{t('sidebar.premiumAndBilling')}</span>
-                  <span className={styles.chevron}>
-                    {openDropdowns.billing ? (
-                      <ChevronDownIcon size={14} />
-                    ) : (
-                      <ChevronRightIcon size={14} />
-                    )}
-                  </span>
-                </>
-              )}
-            </button>
-            {!isCollapsed && openDropdowns.billing && (
-              <div className={styles.subMenuList}>
-                <button
-                  type="button"
-                  className={styles.subMenuItem}
-                  onClick={() => handleNav('/admin/plans')}
-                >
-                  <span>{t('sidebar.subscriptionPlans')}</span>
-                  <span className={styles.pendingBadge}>{t('sidebar.pendingBadge')}</span>
-                </button>
-                <button
-                  type="button"
-                  className={styles.subMenuItem}
-                  onClick={() => handleNav('/admin/transactions')}
-                >
-                  <span>{t('sidebar.transactions')}</span>
-                  <span className={styles.pendingBadge}>{t('sidebar.pendingBadge')}</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 4. Bài viết và cộng đồng (dropdown - chưa làm) */}
-          <div className={styles.dropdownGroup}>
-            <button
-              type="button"
-              className={`${styles.navItem} ${styles.dropdownTrigger}`}
-              onClick={() => toggleDropdown('community')}
-              title={t('sidebar.communityAndPosts')}
-            >
-              <MessageSquareIcon size={18} className={styles.navIcon} />
-              {!isCollapsed && (
-                <>
-                  <span className={styles.navLabel}>{t('sidebar.communityAndPosts')}</span>
-                  <span className={styles.chevron}>
-                    {openDropdowns.community ? (
-                      <ChevronDownIcon size={14} />
-                    ) : (
-                      <ChevronRightIcon size={14} />
-                    )}
-                  </span>
-                </>
-              )}
-            </button>
-            {!isCollapsed && openDropdowns.community && (
-              <div className={styles.subMenuList}>
-                <button
-                  type="button"
-                  className={styles.subMenuItem}
-                  onClick={() => handleNav('/admin/posts')}
-                >
-                  <span>{t('sidebar.posts')}</span>
-                  <span className={styles.pendingBadge}>{t('sidebar.pendingBadge')}</span>
-                </button>
-                <button
-                  type="button"
-                  className={styles.subMenuItem}
-                  onClick={() => handleNav('/admin/comments')}
-                >
-                  <span>{t('sidebar.comments')}</span>
-                  <span className={styles.pendingBadge}>{t('sidebar.pendingBadge')}</span>
-                </button>
-                <button
-                  type="button"
-                  className={styles.subMenuItem}
-                  onClick={() => handleNav('/admin/groups')}
-                >
-                  <span>{t('sidebar.groups')}</span>
-                  <span className={styles.pendingBadge}>{t('sidebar.pendingBadge')}</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 5. Báo cáo (chưa làm) */}
-          <button
-            type="button"
-            className={`${styles.navItem} ${currentPath === '/admin/reports' ? styles.active : ''}`}
-            onClick={() => handleNav('/admin/reports')}
-            title={t('sidebar.reports')}
-          >
-            <AlertTriangleIcon size={18} className={styles.navIcon} />
-            {!isCollapsed && (
-              <>
-                <span className={styles.navLabel}>{t('sidebar.reports')}</span>
-                <span className={styles.pendingBadge}>{t('sidebar.pendingBadge')}</span>
-              </>
-            )}
-          </button>
-
-          {/* 6. Người dùng (dropdown) */}
-          <div className={styles.dropdownGroup}>
-            <button
-              type="button"
-              className={`${styles.navItem} ${styles.dropdownTrigger} ${
-                currentPath.startsWith('/admin/users') || currentPath.startsWith('/admin/roles')
-                  ? styles.active
-                  : ''
-              }`}
-              onClick={() => toggleDropdown('users')}
-              title={t('sidebar.users')}
-            >
-              <UsersIcon size={18} className={styles.navIcon} />
-              {!isCollapsed && (
-                <>
-                  <span className={styles.navLabel}>{t('sidebar.users')}</span>
-                  <span className={styles.chevron}>
-                    {openDropdowns.users ? (
-                      <ChevronDownIcon size={14} />
-                    ) : (
-                      <ChevronRightIcon size={14} />
-                    )}
-                  </span>
-                </>
-              )}
-            </button>
-            {!isCollapsed && openDropdowns.users && (
-              <div className={styles.subMenuList}>
-                <button
-                  type="button"
-                  className={`${styles.subMenuItem} ${
-                    currentPath.startsWith('/admin/users') ? styles.active : ''
-                  }`}
-                  onClick={() => handleNav('/admin/users')}
-                >
-                  <span>{t('sidebar.userList')}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.subMenuItem} ${
-                    currentPath.startsWith('/admin/roles') ? styles.active : ''
-                  }`}
-                  onClick={() => handleNav('/admin/roles')}
-                >
-                  <span>{t('sidebar.rolesAndPermissions')}</span>
-                  <span className={styles.pendingBadge}>{t('sidebar.pendingBadge')}</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 7. Cấu hình hệ thống (dropdown) */}
-          <div className={styles.dropdownGroup}>
-            <button
-              type="button"
-              className={`${styles.navItem} ${styles.dropdownTrigger} ${
-                currentPath.startsWith('/admin/settings') ? styles.active : ''
-              }`}
-              onClick={() => toggleDropdown('settings')}
-              title={t('sidebar.systemSettings')}
-            >
-              <SettingsIcon size={18} className={styles.navIcon} />
-              {!isCollapsed && (
-                <>
-                  <span className={styles.navLabel}>{t('sidebar.systemSettings')}</span>
-                  <span className={styles.chevron}>
-                    {openDropdowns.settings ? (
-                      <ChevronDownIcon size={14} />
-                    ) : (
-                      <ChevronRightIcon size={14} />
-                    )}
-                  </span>
-                </>
-              )}
-            </button>
-            {!isCollapsed && openDropdowns.settings && (
-              <div className={styles.subMenuList}>
-                <button
-                  type="button"
-                  className={`${styles.subMenuItem} ${
-                    currentPath === '/admin/settings' || currentPath === '/admin/settings/configs'
-                      ? styles.active
-                      : ''
-                  }`}
-                  onClick={() => handleNav('/admin/settings/configs')}
-                >
-                  <span>{t('sidebar.systemConfigs')}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.subMenuItem} ${
-                    currentPath === '/admin/settings/audit-logs' ? styles.active : ''
-                  }`}
-                  onClick={() => handleNav('/admin/settings/audit-logs')}
-                >
-                  <span>{t('sidebar.auditLogs')}</span>
-                </button>
-              </div>
-            )}
-          </div>
+            );
+          })}
         </nav>
 
-        {/* Footer Toggle Collapse (Desktop only) */}
         <div className={styles.sidebarFooter}>
           <button
             type="button"
