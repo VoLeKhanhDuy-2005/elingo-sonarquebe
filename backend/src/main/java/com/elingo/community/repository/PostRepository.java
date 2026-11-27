@@ -1,6 +1,10 @@
 package com.elingo.community.repository;
 
+import com.elingo.community.dto.projection.PostBacklogProjection;
+import com.elingo.community.dto.projection.PostGroupCountProjection;
+import com.elingo.community.dto.projection.PostStatusCountProjection;
 import com.elingo.community.entity.Post;
+import com.elingo.community.entity.PostStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -83,4 +87,26 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Modifying
     @Query("UPDATE Post p SET p.commentCount = CASE WHEN (p.commentCount + :delta) < 0 THEN 0 ELSE (p.commentCount + :delta) END WHERE p.id = :postId")
     int updateCommentCount(@Param("postId") Long postId, @Param("delta") int delta);
+
+    @Query("select p.user.id from Post p where p.id = :postId and p.status = com.elingo.community.entity.PostStatus.PUBLISHED")
+    Optional<Long> findPublishedPostOwnerId(@Param("postId") Long postId);
+
+    @Query("SELECT p.status AS status, COUNT(p.id) AS countVal FROM Post p GROUP BY p.status")
+    List<PostStatusCountProjection> countPostsByStatus();
+
+    @Query("""
+            SELECT g.id AS groupId, g.groupName AS groupName, COUNT(p.id) AS postCount
+            FROM PostGroup g
+            LEFT JOIN Post p ON p.group.id = g.id
+            GROUP BY g.id, g.groupName
+            """)
+    List<PostGroupCountProjection> countPostsByGroup();
+
+    @Query(value = """
+            SELECT
+                COUNT(CASE WHEN status = 'PENDING' THEN 1 END) AS pendingCount,
+                COUNT(CASE WHEN status = 'NEEDS_REVIEW' THEN 1 END) AS needsReviewCount
+            FROM posts
+            """, nativeQuery = true)
+    PostBacklogProjection countPostBacklog();
 }

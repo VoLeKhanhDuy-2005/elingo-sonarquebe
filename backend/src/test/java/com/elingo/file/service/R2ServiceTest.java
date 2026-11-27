@@ -45,6 +45,7 @@ import java.net.URI;
 import java.net.URL;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -104,7 +105,7 @@ class R2ServiceTest {
         @Test
         @DisplayName("valid config -> no exception")
         void valid() {
-            r2Service.afterPropertiesSet();
+            assertThatCode(() -> r2Service.afterPropertiesSet()).doesNotThrowAnyException();
         }
 
         @Test
@@ -304,7 +305,9 @@ class R2ServiceTest {
                     .thenThrow(s3Error(500));
 
             // không ném exception
-            r2Service.abortMultipart(new AbortMultipartRequest("staging/12/a.mp4", "upload-1"), USER_ID);
+            assertThatCode(() -> r2Service.abortMultipart(new AbortMultipartRequest("staging/12/a.mp4", "upload-1"), USER_ID))
+                    .doesNotThrowAnyException();
+            verify(s3Client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
         }
     }
 
@@ -552,6 +555,51 @@ class R2ServiceTest {
                             .isEqualTo(AppError.FILE_UPLOAD_FAILED));
             verify(s3Client, never()).headObject(any(HeadObjectRequest.class));
             verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
+        }
+    }
+
+    // ========================================================================
+    // promoteToSystem — copy verified -> system/module/
+    // ========================================================================
+    @Nested
+    @DisplayName("promoteToSystem")
+    class PromoteToSystem {
+
+        private static final String VERIFIED_KEY = "verified/12/a.png";
+        private static final String SYSTEM_KEY = "system/decks/a.png";
+
+        @Test
+        @DisplayName("normal: copy straight from verified/ to system/, no HEAD and no delete verified/")
+        void success() {
+            r2Service.promoteToSystem(VERIFIED_KEY, SYSTEM_KEY);
+
+            verify(s3Client).copyObject(any(CopyObjectRequest.class));
+            verify(s3Client, never()).headObject(any(HeadObjectRequest.class));
+            verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
+        }
+
+        @Test
+        @DisplayName("key filename mismatch -> IllegalArgumentException, no R2 touch")
+        void filenameMismatch() {
+            assertThatThrownBy(() -> r2Service.promoteToSystem(VERIFIED_KEY, "system/decks/b.png"))
+                    .isInstanceOf(IllegalArgumentException.class);
+            verify(s3Client, never()).copyObject(any(CopyObjectRequest.class));
+        }
+
+        @Test
+        @DisplayName("source not in verified zone -> IllegalArgumentException")
+        void sourceNotVerified() {
+            assertThatThrownBy(() -> r2Service.promoteToSystem("staging/12/a.png", SYSTEM_KEY))
+                    .isInstanceOf(IllegalArgumentException.class);
+            verify(s3Client, never()).copyObject(any(CopyObjectRequest.class));
+        }
+
+        @Test
+        @DisplayName("destination not in system zone -> IllegalArgumentException")
+        void destNotSystem() {
+            assertThatThrownBy(() -> r2Service.promoteToSystem(VERIFIED_KEY, "uploads/12/a.png"))
+                    .isInstanceOf(IllegalArgumentException.class);
+            verify(s3Client, never()).copyObject(any(CopyObjectRequest.class));
         }
     }
 }

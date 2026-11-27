@@ -1,5 +1,6 @@
 package com.elingo.community.repository;
 
+import com.elingo.community.dto.projection.DateCountProjection;
 import com.elingo.community.entity.Comment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -9,8 +10,10 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
@@ -37,4 +40,24 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     @Query("SELECT COUNT(c) FROM Comment c WHERE c.id = :commentId OR c.parentComment.id = :commentId")
     long countByCommentOrReplies(@Param("commentId") Long commentId);
+
+    @Query("""
+    select c.user.id from Comment c
+    join c.post p
+    where c.id = :commentId
+      and p.status = com.elingo.community.entity.PostStatus.PUBLISHED
+    """)
+    Optional<Long> findVisibleCommentOwnerId(@Param("commentId") Long commentId);
+
+    @Query(value = """
+            SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS dateKey, COUNT(*) AS countVal
+            FROM comments
+            WHERE created_at >= :from AND created_at < :to
+            GROUP BY dateKey
+            ORDER BY dateKey ASC
+            """, nativeQuery = true)
+    List<DateCountProjection> countCommentsByDay(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to
+    );
 }

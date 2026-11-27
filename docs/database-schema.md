@@ -32,7 +32,7 @@ CREATE TABLE users (
 ```sql
 CREATE TABLE tags (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  label VARCHAR(150) NOT NULL,
+  label VARCHAR(150) NOT NULL UNIQUE,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -344,13 +344,14 @@ CREATE TABLE user_xp (
 CREATE TABLE xp_events (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT UNSIGNED NOT NULL,
-  source ENUM('FLASHCARD_REVIEW','LESSON_DICTATION','LESSON_SHADOWING',
-              'BATTLE','DAILY_CHECKIN','ADMIN_ADJUST') NOT NULL,
+  source ENUM('FLASHCARD_REVIEW','SEGMENT_DICTATION','SEGMENT_SHADOWING',
+              'BATTLE_WIN','BATTLE_LOSE','DAILY_CHECKIN','ADMIN_ADJUST') NOT NULL,
   ref_id BIGINT UNSIGNED,
   amount INT NOT NULL,       -- cho phép âm nếu admin trừ XP
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX idx_xp_user_time (user_id, created_at)
+  INDEX idx_xp_user_time (user_id, created_at),
+  INDEX idx_xp_created_source_user (created_at, source, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Tách streak ra riêng khỏi user_gamification
@@ -382,7 +383,7 @@ CREATE TABLE badges (
   name VARCHAR(150) NOT NULL,
   description VARCHAR(500),
   icon_url VARCHAR(500),
-  condition_type ENUM('STREAK_DAYS','TOTAL_XP','BATTLE_WINS','LESSONS_COMPLETED') NOT NULL,
+  condition_type ENUM('STREAK_DAYS','TOTAL_XP','BATTLE_WINS','SEGMENT_COMPLETED', 'WORDS_LEARNED') NOT NULL,
   condition_value INT UNSIGNED NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -456,7 +457,7 @@ CREATE TABLE post_moderation_logs (
   actor_type ENUM('AI','ADMIN') NOT NULL,
   actor_id BIGINT UNSIGNED NULL,              -- id admin nếu actor_type = ADMIN, NULL nếu AI
   action ENUM('AUTO_APPROVE','AUTO_REJECT','FLAG_FOR_REVIEW',
-              'MANUAL_APPROVE','MANUAL_REJECT','MANUAL_HIDE') NOT NULL,
+              'MANUAL_APPROVE','MANUAL_REJECT') NOT NULL,
   ai_label VARCHAR(100) NULL,                 -- ví dụ 'SPAM', 'HATE_SPEECH', 'CLEAN' (chỉ có khi actor_type = AI)
   ai_score DECIMAL(5,4) NULL,                 -- độ tin cậy AI trả về (chỉ có khi actor_type = AI)
   note VARCHAR(500) NULL,                     -- ghi chú của admin khi duyệt tay
@@ -525,7 +526,7 @@ CREATE TABLE post_likes (
 CREATE TABLE reports (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   reporter_id BIGINT UNSIGNED NOT NULL,
-  target_type ENUM('POST','COMMENT','USER','DECK') NOT NULL,
+  target_type ENUM('POST','COMMENT','USER','DECK', 'LESSON') NOT NULL,
   target_id BIGINT UNSIGNED NOT NULL,    -- validate ở tầng service
   description VARCHAR(1000),
   status ENUM('PENDING','RESOLVED','REJECTED') NOT NULL DEFAULT 'PENDING',
@@ -536,7 +537,7 @@ CREATE TABLE reports (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL,
-  INDEX idx_report_target (target_type, target_id),
+  INDEX idx_report_reporter (reporter_id, created_at),
   INDEX idx_report_status (status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -606,7 +607,10 @@ CREATE TABLE payment_transactions (
   FOREIGN KEY (plan_id) REFERENCES premium_plans(id),
   FOREIGN KEY (provider_id) REFERENCES payment_providers(id),
   INDEX idx_tx_user_created (user_id, created_at),
-  INDEX idx_tx_status_created (status, created_at)
+  INDEX idx_tx_status_created (status, created_at),
+  INDEX idx_tx_status_paid_plan_amount (status, paid_at, plan_id, amount),
+  INDEX idx_tx_created_at (created_at),
+  INDEX idx_tx_plan_created (plan_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Log kỹ thuật: lưu MỌI lần webhook gọi tới, kể cả trùng lặp/lỗi — phục vụ tra soát, không phải nguồn tính tiền
@@ -623,7 +627,8 @@ CREATE TABLE payment_webhook_logs (
   FOREIGN KEY (provider_id) REFERENCES payment_providers(id),
   FOREIGN KEY (transaction_id) REFERENCES payment_transactions(id) ON DELETE SET NULL,
   UNIQUE KEY uk_webhook_log_provider_event (provider_id, event_id),
-  INDEX idx_webhook_transaction (transaction_id)
+  INDEX idx_webhook_transaction (transaction_id),
+  INDEX idx_webhook_status_received (status, received_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
@@ -669,16 +674,55 @@ CREATE TABLE speaking_participants (
 CREATE TABLE notifications (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT UNSIGNED NOT NULL,
-  type VARCHAR(100) NOT NULL,           -- ví dụ: 'REPORT_RESOLVED', 'BADGE_EARNED', 'SUBSCRIPTION_EXPIRING'
+  type ENUM('POST_LIKED','POST_COMMENTED','COMMENT_REPLIED','BADGE_EARNED','SUBSCRIPTION_ACTIVATED','SUBSCRIPTION_EXPIRING','REPORT_RESOLVED') NOT NULL,
   title VARCHAR(255) NOT NULL,
-  content VARCHAR(500),
-  ref_type VARCHAR(50),
+  params JSON,
+  ref_type ENUM('POST','COMMENT','BADGE','SUBSCRIPTION','REPORT'),
   ref_id BIGINT UNSIGNED,
   is_read BOOLEAN NOT NULL DEFAULT FALSE,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_notification_user (user_id, is_read, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
+
+---
+
+## 11. Admin Audit Log
+
+Bảng nhật ký hoạt động của quản trị viên (Admin Audit Log), phục vụ giám sát bảo mật, tra soát vi phạm và đối soát thay đổi dữ liệu hệ thống.
+
+Đặc tính kỹ thuật:
+- **Chỉ ghi thêm (Append-only / Immutable)**: Bản ghi chỉ được thêm mới (`INSERT`), không sửa đổi (`UPDATE`) hay xóa (`DELETE`). Không có trường `updated_at`.
+- **Lưu trữ chuỗi linh hoạt**: Cột `action` và `target_type` được lưu trữ dưới dạng `VARCHAR(50)` thay vì kiểu `ENUM` cứng, giúp dễ dàng mở rộng thêm thao tác mới mà không cần `ALTER TABLE`.
+- **Độ dài an toàn**: Giới hạn `target_id` tối đa 64 ký tự, `detail` tối đa 1000 ký tự và `ip_address` tối đa 45 ký tự (đáp ứng cả định dạng IPv4 và IPv6).
+
+```sql
+CREATE TABLE admin_audit_logs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  admin_id BIGINT UNSIGNED NOT NULL,
+  action VARCHAR(50) NOT NULL,
+  target_type VARCHAR(50) NOT NULL,
+  target_id VARCHAR(64) NULL,
+  detail VARCHAR(1000) NULL,
+  ip_address VARCHAR(45) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_audit_target (target_type, target_id),
+  INDEX idx_audit_admin_created (admin_id, created_at),
+  INDEX idx_audit_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### Danh mục giá trị tham chiếu
+
+- **AdminAuditAction**:
+  - Người dùng: `USER_LOCK`, `USER_UNLOCK`, `USER_ROLE_CHANGE`
+  - Nội dung học tập: `SYSTEM_DECK_PUBLISH`, `SYSTEM_DECK_ARCHIVE`, `SYSTEM_DECK_CREATE`, `USER_DECK_DELETE`, `LESSON_CREATE`, `LESSON_UPDATE`, `LESSON_DELETE`, `SEGMENT_CREATE`, `SEGMENT_UPDATE`, `SEGMENT_DELETE`
+  - Kiểm duyệt cộng đồng: `POST_APPROVE`, `POST_REJECT`
+  - Báo cáo vi phạm: `REPORT_RESOLVE`, `REPORT_REJECT`
+  - Gói & Thanh toán: `PLAN_CREATE`, `PLAN_UPDATE`, `PLAN_DISABLE`, `SUBSCRIPTION_GRANT`, `SUBSCRIPTION_REVOKE`
+- **AdminAuditTargetType**:
+  - `USER`, `DECK`, `TOPIC`, `CARD`, `LESSON`, `LESSON_SEGMENT`, `CEFR_LEVEL`, `TAG`, `LEVEL`, `BADGE`, `POST`, `COMMENT`, `REPORT`, `PREMIUM_PLAN`, `SUBSCRIPTION`, `TRANSACTION`
 
 ---

@@ -10,7 +10,7 @@ public class SlugUtils {
 
     private SlugUtils() {}
 
-    public static String generateSlug(String title) {
+    public static String generateUniqueSlug(String title) {
         if (title == null || title.trim().isEmpty()) {
             return "";
         }
@@ -20,7 +20,7 @@ public class SlugUtils {
         slug = DIACRITICS_PATTERN.matcher(slug).replaceAll("");
         slug = slug.toLowerCase();
         slug = NON_ALPHANUMERIC_PATTERN.matcher(slug).replaceAll("-");
-        slug = slug.replaceAll("^-+|-+$", "");
+        slug = slug.replaceAll("^-", "").replaceAll("-$", "");
 
         String randomStr = UUID.randomUUID().toString().substring(0, 8);
         return slug.isEmpty() ? randomStr : slug + "-" + randomStr;

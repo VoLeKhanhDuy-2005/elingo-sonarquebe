@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import Header from './components/Header/Header';
 import Footer from './components/Footer/Footer';
@@ -22,27 +22,39 @@ import PostDetailPage from './modules/community/pages/PostDetailPage/PostDetailP
 import { BattleSocketProvider } from './modules/battle/context/BattleSocketContext';
 import BattleLobbyPage from './modules/battle/pages/BattleLobbyPage';
 import BattlePlayPage from './modules/battle/pages/BattlePlayPage';
+import PremiumListPage from './modules/premium/pages/PremiumListPage/PremiumListPage';
+import MySubscriptionPage from './modules/premium/pages/MySubscriptionPage/MySubscriptionPage';
+import BattleHistoryPage from './modules/battle/pages/BattleHistoryPage';
+import BattleMatchDetailPage from './modules/battle/pages/BattleMatchDetailPage';
+import { SpeakingSocketProvider } from './modules/speaking/context/SpeakingSocketContext';
+import { SpeakingRoomProvider } from './modules/speaking/context/SpeakingRoomContext';
+import SpeakingLobbyPage from './modules/speaking/pages/SpeakingLobbyPage';
+import SpeakingRoomPage from './modules/speaking/pages/SpeakingRoomPage';
+import SpeakingHistoryPage from './modules/speaking/pages/SpeakingHistoryPage';
+import ReportPage from './modules/report/pages/ReportPage';
+import MyProfilePage from './modules/user/pages/MyProfilePage';
+import UserProfilePage from './modules/user/pages/UserProfilePage';
+import GamificationPage from './modules/gamification/pages/GamificationPage';
 import './App.css';
 
-const PUBLIC_PATHS = ['/login', '/signup', '/account-verification', '/reset-password'];
+const AdminRoutes = lazy(() => import('./modules/admin/routes'));
 
-// Các public route có thể xem cả khi chưa đăng nhập và khi đã đăng nhập (không redirect về /dashboard nếu đã đăng nhập)
-const SHARED_PUBLIC_PATHS = ['/', '/decks', '/lessons'];
+const AUTH_PATHS = ['/login', '/signup', '/account-verification', '/reset-password'];
 
 const PRIVATE_USER_PATHS = [
   '/dashboard',
   '/review',
   '/battle',
   '/speaking',
+  '/speaking/history',
   '/community',
   '/community/groups',
   '/community/my-posts',
   '/progress',
   '/gamification',
-  '/premium',
   '/premium/my-subscription',
   '/profile',
-  '/notification',
+  '/reports',
 ];
 
 function App() {
@@ -65,9 +77,11 @@ function App() {
   const dictationMatch = currentPath.match(/^\/lessons\/dictation\/([^/]+)$/);
   const shadowingMatch = currentPath.match(/^\/lessons\/shadowing\/([^/]+)$/);
   const battlePlayMatch = currentPath.match(/^\/battle\/play\/(\d+)$/);
-  const deckListMatch = currentPath === '/decks';
+  const battleDetailMatch = currentPath.match(/^\/battle\/history\/(\d+)$/);
+  const speakingRoomMatch = currentPath.match(/^\/speaking\/room\/([A-Za-z0-9]{6})$/);
   const deckTopicsMatch = currentPath.match(/^\/decks\/([^/]+)\/topics$/);
   const postDetailMatch = currentPath.match(/^\/community\/posts\/(\d+)$/);
+  const userProfileMatch = currentPath.match(/^\/profile\/([^/]+)$/);
   const isPrivateUserPath =
     PRIVATE_USER_PATHS.some((path) => {
       return currentPath === path || currentPath.startsWith(`${path}/`);
@@ -75,12 +89,14 @@ function App() {
     !!flashcardStudyMatch ||
     !!deckTopicsMatch ||
     !!dictationMatch ||
-    !!shadowingMatch;
+    !!shadowingMatch ||
+    !!speakingRoomMatch ||
+    !!userProfileMatch;
 
   useEffect(() => {
     if (loading) return;
 
-    const isAuthOnlyPath = PUBLIC_PATHS.includes(currentPath);
+    const isAuthOnlyPath = AUTH_PATHS.includes(currentPath);
     const isAdmin = user?.role === 'ADMIN';
     const isAdminPath = currentPath.startsWith('/admin');
 
@@ -96,11 +112,6 @@ function App() {
 
     if (user && isAdminPath && !isAdmin) {
       navigate('/dashboard');
-      return;
-    }
-
-    if (user && isAdmin && !isAdminPath) {
-      navigate('/admin');
     }
   }, [currentPath, user, loading, isPrivateUserPath]);
 
@@ -130,21 +141,21 @@ function App() {
 
   const renderAdminContent = () => {
     return (
-      <main className="placeholder-page">
-        <div className="placeholder-page__card glass-card">
-          <span className="material-symbols-outlined placeholder-page__icon">
-            admin_panel_settings
-          </span>
-          <h1 className="text-headline-md">Admin area</h1>
-          <p className="text-body-md text-disabled">
-            This module is outside the current implementation scope.
-          </p>
-        </div>
-      </main>
+      <Suspense
+        fallback={
+          <div className="app-loading-screen">
+            <div className="app-loading-spinner" />
+          </div>
+        }
+      >
+        <AdminRoutes currentPath={currentPath} onNavigate={navigate} />
+      </Suspense>
     );
   };
 
   const renderBattle = (page) => <BattleSocketProvider>{page}</BattleSocketProvider>;
+  const renderSpeaking = (page) => <SpeakingSocketProvider>{page}</SpeakingSocketProvider>;
+  const renderSpeakingRoom = (page) => <SpeakingRoomProvider>{page}</SpeakingRoomProvider>;
 
   const renderContent = () => {
     if (postDetailMatch) {
@@ -157,10 +168,20 @@ function App() {
           )}
           onNavigate={navigate}
         />
-        )}
+      );
+    }
+    if (battleDetailMatch) {
+      return <BattleMatchDetailPage matchId={battleDetailMatch[1]} onNavigate={navigate} />;
+    }
+
     if (battlePlayMatch) {
-      return renderBattle(
-        <BattlePlayPage matchId={battlePlayMatch[1]} onNavigate={navigate} />
+      return renderBattle(<BattlePlayPage matchId={battlePlayMatch[1]} onNavigate={navigate} />);
+    }
+
+    if (speakingRoomMatch) {
+      const code = speakingRoomMatch[1].toUpperCase();
+      return renderSpeakingRoom(
+        <SpeakingRoomPage key={code} roomCode={code} onNavigate={navigate} />
       );
     }
 
@@ -188,6 +209,16 @@ function App() {
       return <ShadowingPage slug={decodeURIComponent(shadowingMatch[1])} onNavigate={navigate} />;
     }
 
+    if (userProfileMatch) {
+      return (
+        <UserProfilePage
+          key={currentPath}
+          userId={decodeURIComponent(userProfileMatch[1])}
+          onNavigate={navigate}
+        />
+      );
+    }
+
     switch (currentPath) {
       case '/':
         return <LandingPage onNavigate={navigate} />;
@@ -207,8 +238,12 @@ function App() {
         return <FlashcardReviewPage onNavigate={navigate} />;
       case '/battle':
         return renderBattle(<BattleLobbyPage onNavigate={navigate} />);
+      case '/battle/history':
+        return <BattleHistoryPage onNavigate={navigate} />;
       case '/speaking':
-        return <PlaceholderPage title="Speaking" path={currentPath} />;
+        return renderSpeaking(<SpeakingLobbyPage onNavigate={navigate} />);
+      case '/speaking/history':
+        return renderSpeaking(<SpeakingHistoryPage onNavigate={navigate} />);
       case '/community':
         return (
           <CommunityFeedPage
@@ -224,17 +259,17 @@ function App() {
       case '/progress':
         return <PlaceholderPage title="Progress" path={currentPath} />;
       case '/gamification':
-        return <PlaceholderPage title="Gamification" path={currentPath} />;
+        return <GamificationPage onNavigate={navigate} userId={user.id} />;
       case '/premium':
-        return <PlaceholderPage title="Premium" path={currentPath} />;
+        return <PremiumListPage onNavigate={navigate} />;
       case '/premium/my-subscription':
-        return <PlaceholderPage title="My Subscription" path={currentPath} />;
+        return <MySubscriptionPage onNavigate={navigate} />;
       case '/profile':
-        return <PlaceholderPage title="Profile" path={currentPath} />;
+        return <MyProfilePage onNavigate={navigate} />;
+      case '/reports':
+        return <ReportPage onNavigate={navigate} />;
       case '/decks':
         return <DeckListPage onNavigate={navigate} />;
-      case '/notification':
-        return <PlaceholderPage title="Notifications" path={currentPath} />;
       default:
         return <NotFoundPage onNavigate={navigate} />;
     }

@@ -1,6 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import OptionsMenu from '../../../../../components/OptionsMenu/OptionsMenu';
-import { formatDate, formatRelativeTime } from '../../../../../utils/utils';
+import {
+  formatRelativeTime,
+  getFallbackAvatarUrl,
+} from '../../../../../utils/utils';
 import './PostCardHeader.css';
 
 /**
@@ -17,11 +20,7 @@ function PostCardHeader({
 }) {
   const { t, i18n } = useTranslation();
 
-  const formattedDate = formatDate(createdAt);
-  const formattedCreatedAt =
-    formattedDate === formatDate(new Date())
-      ? formatRelativeTime(createdAt, i18n.resolvedLanguage || 'vi')
-      : formattedDate || createdAt;
+  const formattedCreatedAt = formatRelativeTime(createdAt, i18n.resolvedLanguage || 'vi');
 
   const normalizedStatus = (status || 'PUBLISHED').toUpperCase();
 
@@ -64,7 +63,7 @@ function PostCardHeader({
           <img
             src={
               author?.avatarUrl ||
-              `https://ui-avatars.com/api/?name=${encodeURIComponent(authorDisplayName)}`
+              getFallbackAvatarUrl(authorDisplayName)
             }
             alt={authorDisplayName}
             className="post-card-header__avatar"

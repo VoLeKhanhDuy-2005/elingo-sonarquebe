@@ -14,13 +14,34 @@ export const formatDate = (dateInput, options = {}) => {
   const date = new Date(dateInput);
   if (isNaN(date.getTime())) return '';
 
+  const normalizedOptions = typeof options === 'string' ? { locale: options } : options;
+  const { locale = 'vi-VN', ...fmtOptions } = normalizedOptions;
+
   const defaults = {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   };
 
-  return new Intl.DateTimeFormat('vi-VN', { ...defaults, ...options }).format(date);
+  return new Intl.DateTimeFormat(locale, { ...defaults, ...fmtOptions }).format(date);
+};
+
+/**
+ * Format ngày giờ thành chuỗi theo locale (mặc định gồm cả giờ và phút).
+ * @param {string|Date} dateInput
+ * @param {Object|string} options - Intl.DateTimeFormat options
+ * @returns {string}
+ */
+export const formatDateTime = (dateInput, options = {}) => {
+  if (!dateInput) return '';
+  const normalizedOptions = typeof options === 'string' ? { locale: options } : options;
+  const { hour = '2-digit', minute = '2-digit', ...rest } = normalizedOptions;
+
+  return formatDate(dateInput, {
+    hour,
+    minute,
+    ...rest,
+  });
 };
 
 /**
@@ -44,7 +65,18 @@ export const formatRelativeTime = (dateInput, locale = 'vi') => {
   if (diffSec < 60 * 60) {
     return relativeTimeFormat.format(-Math.floor(diffSec / 60), 'minute');
   }
-  return relativeTimeFormat.format(-Math.floor(diffSec / (60 * 60)), 'hour');
+  if (diffSec < 60 * 60 * 24) {
+    return relativeTimeFormat.format(-Math.floor(diffSec / (60 * 60)), 'hour');
+  }
+
+  // Hơn 1 ngày: hiển thị ngày cụ thể
+  const now = new Date();
+  const isThisYear = date.getFullYear() === now.getFullYear();
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    ...(isThisYear ? {} : { year: 'numeric' }),
+  }).format(date);
 };
 
 /**
@@ -122,6 +154,14 @@ export const getInitials = (fullName) => {
 };
 
 /**
+ * Tạo URL avatar fallback từ tên hiển thị.
+ * @param {string} displayName
+ * @returns {string}
+ */
+export const getFallbackAvatarUrl = (displayName = '') =>
+  `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`;
+
+/**
  * Format số thành chuỗi dễ đọc (vd: 1500 → '1.5K').
  * @param {number} num
  * @returns {string}
@@ -131,4 +171,46 @@ export const formatCount = (num) => {
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
   return String(num);
+};
+
+/**
+ * Tách thời hạn tính theo ngày thành đơn vị dễ đọc.
+ * @param {number} durationDays
+ * @returns {{ unit: 'lifetime' | 'year' | 'month' | 'day', count: number }}
+ */
+export const getDurationParts = (durationDays) => {
+  if (durationDays === 0) {
+    return { unit: 'lifetime', count: 1 };
+  }
+
+  if (!Number.isFinite(durationDays) || durationDays <= 0) {
+    return { unit: 'day', count: 0 };
+  }
+
+  if (durationDays % 365 === 0) {
+    return { unit: 'year', count: durationDays / 365 };
+  }
+
+  if (durationDays % 30 === 0) {
+    return { unit: 'month', count: durationDays / 30 };
+  }
+
+  return { unit: 'day', count: durationDays };
+};
+
+/**
+ * Format giá theo locale và mã tiền tệ.
+ * @param {number|string} price
+ * @param {string} currency
+ * @param {string} locale
+ * @returns {string}
+ */
+export const formatPremiumPrice = (price, currency, locale) => {
+  const numericPrice =
+    price === '' || price === null || price === undefined ? Number.NaN : Number(price);
+  const formattedPrice = Number.isFinite(numericPrice)
+    ? new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(numericPrice)
+    : price;
+
+  return currency ? `${formattedPrice} ${currency}` : formattedPrice;
 };

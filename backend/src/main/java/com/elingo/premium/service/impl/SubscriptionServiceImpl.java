@@ -1,6 +1,7 @@
 package com.elingo.premium.service.impl;
 
 import com.elingo.common.exception.AppError;
+import com.elingo.premium.dto.projection.PlanSubscriptionStat;
 import com.elingo.common.exception.AppException;
 import com.elingo.premium.entity.PremiumPlan;
 import com.elingo.premium.entity.SubscriptionStatus;
@@ -15,7 +16,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -74,6 +77,73 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         log.info("Created new premium subscription id={} userId={} planId={} startAt={} endAt={}",
                 created.getId(), userId, planId, created.getStartAt(), created.getEndAt());
         return created;
+    }
+
+    @Override
+    @Transactional
+    public Duration revokeSubscriptionTime(Long userId, Long subscriptionId, int planDurationDays, LocalDateTime paidAt) {
+        if (userRepository.findByIdForUpdate(userId).isEmpty()) {
+            throw new AppException(AppError.USER_NOT_FOUND);
+        }
+
+        if (subscriptionId == null) {
+            return Duration.ZERO;
+        }
+
+        UserSubscription sub = userSubscriptionRepository
+                .findById(subscriptionId).orElse(null);
+        if (sub == null || sub.getStatus() != SubscriptionStatus.ACTIVE) {
+            return Duration.ZERO;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (sub.getEndAt() == null || !sub.getEndAt().isAfter(now)) {
+            sub.setStatus(SubscriptionStatus.EXPIRED);
+            userSubscriptionRepository.save(sub);
+            return Duration.ZERO;
+        }
+
+        LocalDateTime effectivePaidAt = paidAt != null ? paidAt : sub.getStartAt();
+        Duration elapsed = Duration.between(effectivePaidAt, now);
+        if (elapsed.isNegative()) {
+            elapsed = Duration.ZERO;
+        }
+
+        Duration revokeDuration = Duration.ofDays(planDurationDays).minus(elapsed);
+        if (revokeDuration.isNegative() || revokeDuration.isZero()) {
+            return Duration.ZERO;
+        }
+
+        LocalDateTime newEndAt = sub.getEndAt().minus(revokeDuration);
+        if (!newEndAt.isAfter(now)) {
+            sub.setEndAt(now);
+            sub.setStatus(SubscriptionStatus.CANCELLED);
+        } else {
+            sub.setEndAt(newEndAt);
+        }
+
+        userSubscriptionRepository.save(sub);
+        log.info("Revoked subscription time subId={} userId={} revokedHours={} newStatus={} newEndAt={}",
+                sub.getId(), userId, revokeDuration.toHours(), sub.getStatus(), sub.getEndAt());
+        return revokeDuration;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PlanSubscriptionStat> countActiveSubscriptionsByPlan(LocalDateTime now) {
+        return userSubscriptionRepository.countActiveSubscriptionsByPlan(now);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countDistinctActivePremiumUsers(LocalDateTime now) {
+        return userSubscriptionRepository.countDistinctActivePremiumUsers(now);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countTotalActiveSubscriptions(LocalDateTime now) {
+        return userSubscriptionRepository.countTotalActiveSubscriptions(now);
     }
 }
 

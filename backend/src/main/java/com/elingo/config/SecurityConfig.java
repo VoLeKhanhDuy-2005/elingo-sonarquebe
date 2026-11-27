@@ -23,7 +23,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
-import java.util.Map;
 
 @Configuration
 @EnableWebSecurity
@@ -33,32 +32,6 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final IpRateLimitFilter ipRateLimitFilter;
     private final List<String> ALLOW_ORIGINS;
-    private static final HttpMethod[] GET_ONLY = { HttpMethod.GET };
-    private static final HttpMethod[] POST_ONLY = { HttpMethod.POST };
-    private static final HttpMethod[] ALL_METHODS = HttpMethod.values();
-    private static final Map<String, HttpMethod[]> PUBLIC_ENDPOINTS = Map.ofEntries(
-            Map.entry("/auth/login",        POST_ONLY),
-            Map.entry("/auth/signup",       POST_ONLY),
-            Map.entry("/auth/google",       POST_ONLY),
-            Map.entry("/auth/refresh",      POST_ONLY),
-            Map.entry("/auth/logout",       POST_ONLY),
-            Map.entry("/auth/password-reset/**",        POST_ONLY),
-            Map.entry("/auth/account-verifications/**", POST_ONLY),
-            Map.entry("/webhooks/payments/**",          POST_ONLY),
-            Map.entry("/premium/plans",                 GET_ONLY),
-            Map.entry("/swagger-ui/**",     ALL_METHODS),
-            Map.entry("/swagger-ui.html",   ALL_METHODS),
-            Map.entry("/v3/api-docs/**",    ALL_METHODS),
-            Map.entry("/v3/api-docs*/**",   ALL_METHODS),
-            Map.entry("/ws/**",             ALL_METHODS),
-            Map.entry("/decks",             GET_ONLY),
-            Map.entry("/lessons",           GET_ONLY),
-            Map.entry("/tags",              GET_ONLY),
-            Map.entry("/cefr-levels",       GET_ONLY),
-            Map.entry("/post-groups",       GET_ONLY),
-            Map.entry("/posts",             GET_ONLY),
-            Map.entry("/users/*/posts",     GET_ONLY)
-    );
 
     public SecurityConfig(CustomUserDetailsService customUserDetailsService,
             JwtAuthenticationFilter jwtAuthenticationFilter,
@@ -74,11 +47,15 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) {
         http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> {
-                    PUBLIC_ENDPOINTS.forEach((path, methods) -> {
+                    // Ưu tiên bảo vệ các endpoint bắt buộc xác thực trước
+                    SecurityEndpoints.AUTHENTICATED_ENDPOINTS.forEach(pattern -> auth.requestMatchers(pattern).authenticated());
+
+                    SecurityEndpoints.PUBLIC_ENDPOINTS.forEach((path, methods) -> {
                         for (HttpMethod method : methods) {
                             auth.requestMatchers(method, path).permitAll();
                         }
                     });
+                    
                     auth.anyRequest().authenticated();
                 })
                 .sessionManagement(session -> session

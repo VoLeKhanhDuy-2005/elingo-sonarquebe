@@ -1,5 +1,10 @@
 package com.elingo.user.service.impl;
 
+import com.elingo.user.dto.projection.NewUserStats;
+import com.elingo.user.dto.request.AdminUserSearchRequest;
+import com.elingo.user.dto.response.AdminUserResponse;
+import com.elingo.common.dto.PageResponse;
+import com.elingo.common.enums.StatsGranularity;
 import com.elingo.common.exception.AppError;
 import com.elingo.common.exception.AppException;
 import com.elingo.user.dto.request.ChangePasswordRequest;
@@ -11,13 +16,18 @@ import com.elingo.common.enums.OtpType;
 import com.elingo.user.dto.request.SendOTPUpdateEmailRequest;
 import com.elingo.user.dto.request.UpdateEmailRequest;
 import com.elingo.user.dto.request.UpdateProfileRequest;
+import com.elingo.user.entity.Role;
 import com.elingo.user.entity.User;
 import com.elingo.user.repository.UserRepository;
+import com.elingo.user.repository.specification.UserSpecifications;
 import com.elingo.user.service.UserService;
 import com.elingo.user.dto.response.UserMeResponse;
 import com.elingo.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -151,51 +161,172 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(AppError.USER_NOT_FOUND));
 
-        // 1. Avatar: chỉ kiểm tra, chưa ghi 
-        // null/rỗng = xoá; trùng key hiện tại = giữ; còn lại = ảnh mới.
-        String newKey = StringUtils.hasText(request.avatarUrl()) ? request.avatarUrl() : null;
-        String oldKey = user.getAvatarUrl();
-        boolean avatarChanged = !Objects.equals(newKey, oldKey);
-        String newUploadsKey = null;
-        if (avatarChanged && newKey != null) {
-            requireOwned(newKey, userId);                 // key phải thuộc chính user này
-            newUploadsKey = FileKey.toUploads(newKey);    // sai vùng -> AppException(INVALID_REQUEST)
-            if (newUploadsKey.equals(oldKey)) {           // gửi lại verified key đã dùng: bỏ qua hết
-                avatarChanged = false;
-            }
-        }
+        boolean isUsernameChanged = validateUsernameChange(user, request.username(), userId);
 
-        // 2. Username
-        boolean isUsernameChanged = !request.username().equals(user.getUsername());
-        if (isUsernameChanged) {
-            if (!user.canChangeUsername()) {
-                log.warn("Username change rejected due to cooldown userId={} lastChangedAt={}",
-                        userId, user.getUsernameChangedAt());
-                throw new AppException(AppError.CANNOT_CHANGE_USERNAME_YET);
-            }
-            if (userRepository.existsByUsername(request.username())) {
-                log.warn("Username change rejected, already exists userId={}", userId);
-                throw new AppException(AppError.USERNAME_EXISTED);
-            }
-        }
-
-        // 3. Ghi các field thường
         userMapper.updateUser(user, request);
+
         if (isUsernameChanged) {
             user.setUsernameChangedAt(LocalDateTime.now());
         }
 
-        // 4. Avatar: ghi key uploads/ (hoặc null) rồi phát event
-        if (avatarChanged) {
-            user.setAvatarUrl(newUploadsKey);
-            if (newUploadsKey != null) {
-                publisher.publishEvent(new FileAttachedEvent(newKey, newUploadsKey));
-            }
-            if (FileKey.isInZone(oldKey, FileKey.UPLOADS_PREFIX)) { // false khi oldKey null hoặc không phải file hệ thống
-                publisher.publishEvent(new FileDeletedEvent(List.of(oldKey)));
+        updateAvatar(user, request.avatarUrl(), userId);
+
+        return userMapper.toUserMeResponse(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<NewUserStats> countNewUsers(LocalDateTime from, LocalDateTime to, StatsGranularity granularity) {
+        return switch (granularity) {
+            case WEEK -> userRepository.countNewUsersByWeek(from, to);
+            case MONTH -> userRepository.countNewUsersByMonth(from, to);
+            case DAY -> userRepository.countNewUsersByDay(from, to);
+        };
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countTotalUsers() {
+        return userRepository.count();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countVerifiedUsers() {
+        return userRepository.countByIsVerified(true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countActiveUsers() {
+        return userRepository.countByIsActive(true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countUsersBefore(LocalDateTime before) {
+        return userRepository.countByCreatedAtBefore(before);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<AdminUserResponse> searchUsersForAdmin(AdminUserSearchRequest request, Pageable pageable) {
+        Specification<User> spec = UserSpecifications.from(request);
+        Page<User> page = userRepository.findAll(spec, pageable);
+        return PageResponse.of(page.map(userMapper::toAdminUserResponse));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminUserResponse getById(Long userId) {
+        return userMapper.toAdminUserResponse(userRepository
+                .findById(userId).orElseThrow(() -> new AppException(AppError.USER_NOT_FOUND))
+        );
+    }
+
+    @Override
+    @Transactional
+    public AdminUserResponse lockUser(Long adminId, Long userId, String reason) {
+        if (adminId != null && adminId.equals(userId)) {
+            throw new AppException(AppError.CANNOT_MODIFY_SELF);
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(AppError.USER_NOT_FOUND));
+
+        if (Role.ADMIN.equals(user.getRole())) {
+            throw new AppException(AppError.CANNOT_MODIFY_ADMIN);
+        }
+
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+            throw new AppException(AppError.USER_INACTIVE);
+        }
+
+        if (reason == null || reason.isBlank()) {
+            throw new AppException(AppError.INVALID_REQUEST);
+        }
+
+        user.setIsActive(Boolean.FALSE);
+        user.setBanReason(reason);
+
+        log.info("User locked targetUserId={} reason={}", userId, reason);
+
+        return userMapper.toAdminUserResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public AdminUserResponse unlockUser(Long adminId, Long userId) {
+        if (adminId != null && adminId.equals(userId)) {
+            throw new AppException(AppError.CANNOT_MODIFY_SELF);
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(AppError.USER_NOT_FOUND));
+
+        if (Role.ADMIN.equals(user.getRole())) {
+            throw new AppException(AppError.CANNOT_MODIFY_ADMIN);
+        }
+
+        if (Boolean.TRUE.equals(user.getIsActive())) {
+            throw new AppException(AppError.USER_ALREADY_ACTIVE);
+        }
+
+        user.setIsActive(Boolean.TRUE);
+        user.setBanReason(null);
+
+        log.info("User unlocked targetUserId={}", userId);
+
+        return userMapper.toAdminUserResponse(user);
+    }
+
+    private boolean validateUsernameChange(User user, String newUsername, Long userId) {
+        if (newUsername.equals(user.getUsername())) {
+            return false;
+        }
+
+        if (!user.canChangeUsername()) {
+            log.warn("Username change rejected due to cooldown userId={} lastChangedAt={}",
+                    userId, user.getUsernameChangedAt());
+            throw new AppException(AppError.CANNOT_CHANGE_USERNAME_YET);
+        }
+
+        if (userRepository.existsByUsername(newUsername)) {
+            log.warn("Username change rejected, already exists userId={}", userId);
+            throw new AppException(AppError.USERNAME_EXISTED);
+        }
+
+        return true;
+    }
+
+    private void updateAvatar(User user, String requestAvatarUrl, Long userId) {
+        String newKey = StringUtils.hasText(requestAvatarUrl) ? requestAvatarUrl : null;
+        String oldKey = user.getAvatarUrl();
+        if (Objects.equals(newKey, oldKey)) {
+            return;
+        }
+
+        String newUploadsKey = null;
+        if (newKey != null) {
+            requireOwned(newKey, userId);
+            newUploadsKey = FileKey.toUploads(newKey);
+            if (newUploadsKey.equals(oldKey)) {
+                return;
             }
         }
-        return userMapper.toUserMeResponse(user);
+
+        user.setAvatarUrl(newUploadsKey);
+        publishAvatarEvents(newKey, newUploadsKey, oldKey);
+    }
+
+    private void publishAvatarEvents(String newKey, String newUploadsKey, String oldKey) {
+        if (newUploadsKey != null) {
+            publisher.publishEvent(new FileAttachedEvent(newKey, newUploadsKey));
+        }
+
+        if (FileKey.isInZone(oldKey, FileKey.UPLOADS_PREFIX)) {
+            publisher.publishEvent(new FileDeletedEvent(List.of(oldKey)));
+        }
     }
 
     // Key phải thuộc chính user này

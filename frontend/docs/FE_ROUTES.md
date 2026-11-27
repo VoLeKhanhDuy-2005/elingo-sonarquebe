@@ -4,13 +4,13 @@
 > Custom router được implement trong `src/App.jsx` (không dùng React Router).
 > Cập nhật file này mỗi khi thêm route mới.
 >
-> **Nguồn kiểm chứng:** route chỉ được xem là hiện tại khi đã có trong `PUBLIC_PATHS`/`PRIVATE_USER_PATHS` và `renderContent()` của `src/App.jsx`. Route dự kiến phải ghi rõ là planned, không đưa vào guard trước khi có page.
+> **Nguồn kiểm chứng:** route hiện tại được xác định từ `AUTH_PATHS`, `PRIVATE_USER_PATHS` và `renderContent()` trong `src/App.jsx`. Route dự kiến phải ghi rõ là planned, không đưa vào guard trước khi có page.
 
 ---
 
 ## 1. Route Map Hiện Tại
 
-> **Trạng thái implementation:** Landing và bốn auth routes ở mục 1.1 đã có page thực. Các private/admin route bên dưới hiện được guard nhưng đa số vẫn render `PlaceholderPage` trong `App.jsx`; tên component trong bảng là target khi module tương ứng được triển khai.
+> **Trạng thái implementation:** Landing, auth routes, `/decks`, `/lessons`, `/premium`, `/premium/my-subscription` ở mục 1.1 đã có page thực. Các private/admin route bên dưới hiện được guard nhưng đa số vẫn render `PlaceholderPage` trong `App.jsx`; tên component trong bảng là target khi module tương ứng được triển khai.
 
 ### 1.1 Public Routes (Không cần đăng nhập)
 
@@ -21,6 +21,9 @@
 | `/signup` | `SignupPage` | `auth/pages/` | Đăng ký |
 | `/account-verification` | `AccountVerificationPage` | `auth/pages/` | Xác thực email bằng OTP; nhận email qua history state |
 | `/decks` | `DeckListPage` | `vocabulary/pages/` | Trang bộ từ công khai gồm tab bộ từ hệ thống và bộ từ cộng đồng; tab bộ từ của tôi chỉ hiển thị và tải dữ liệu khi đã đăng nhập |
+| `/lessons` | `LessonListPage` | `learning/lesson/pages/` | Danh sách bài học công khai |
+| `/premium` | `PremiumListPage` | `premium/pages/PremiumListPage/` | Danh sách gói Premium đang hoạt động, xem được khi chưa đăng nhập |
+| `/premium/my-subscription` | `MySubscriptionPage` | `premium/pages/MySubscriptionPage/` | Gói Premium đang đăng ký và lịch sử giao dịch của user đang đăng nhập |
 
 **Planned, chưa tạo route/page:** `/forgot-password`, `/reset-password`.
 
@@ -29,26 +32,28 @@
 | Path | Component | Module | Ghi chú |
 |---|---|---|---|
 | `/dashboard` | `DashboardPage` | `user/pages/` | Trang chính sau đăng nhập |
-| `/learning` | `LessonListPage` | `learning/lesson/pages/` | Kho bài học (chọn chế độ bằng modal, không có trang chi tiết riêng) |
-| `/learning/dictation/:slug` | `DictationPage` | `learning/dictation/pages/` | Nghe chép chính tả (định danh theo slug) |
-| `/learning/shadowing/:slug` | `ShadowingPage` | `learning/shadowing/pages/` | Luyện nói đuổi (định danh theo slug) |
+| `/lessons` | `LessonListPage` | `learning/lesson/pages/` | Kho bài học (chọn chế độ bằng modal, không có trang chi tiết riêng) |
+| `/lessons/dictation/:slug` | `DictationPage` | `learning/dictation/pages/` | Nghe chép chính tả (định danh theo slug) |
+| `/lessons/shadowing/:slug` | `ShadowingPage` | `learning/shadowing/pages/` | Luyện nói đuổi (định danh theo slug) |
 | `/decks/:deckSlug` | `FlashcardStudyPage` | `learning/flashcard/pages/` | Học flashcard của một bộ từ (bắt buộc đăng nhập) |
 | `/decks/:deckId/topics` | `TopicListPage` | `vocabulary/pages/` | Quản lý các chủ đề thuộc bộ từ và các thẻ thuộc chủ đề được chọn, bắt buộc đăng nhập |
 | `/review` | `FlashcardReviewPage` | `learning/flashcard/pages/` | Ôn tập flashcard đến hạn (giới hạn 100 flashcard/1 ngày) |
 | `/battle` | `BattleLobbyPage` | `battle/pages/` | Sảnh chờ thi đấu |
-| `/battle/play/:matchId` | `BattlePlayPage` | `battle/pages/` | Màn hình thi đấu (WebSocket: đếm ngược, câu hỏi trắc nghiệm/tự luận, bảng điểm, màn kết thúc) |
-| `/speaking` | `SpeakingLobbyPage` | `speaking/pages/` | Danh sách phòng luyện nói |
-| `/speaking/:roomId` | `SpeakingRoomPage` | `speaking/pages/` | Phòng luyện nói (WebRTC) |
+| `/battle/play/:matchId` | `BattlePlayPage` | `battle/pages/` | Màn hình thi đấu (WebSocket/STOMP: đếm ngược, câu hỏi trắc nghiệm/tự luận, bảng điểm, màn kết thúc) |
+| `/battle/history` | `BattleHistoryPage` | `battle/pages/` | Lịch sử đấu & thống kê cá nhân (REST) |
+| `/battle/history/:matchId` | `BattleMatchDetailPage` | `battle/pages/` | Chi tiết kết quả từng vòng của một trận đấu (REST) |
+| `/speaking` | `SpeakingLobbyPage` | `speaking/pages/` | Sảnh phòng luyện nói: danh sách phòng công khai, tạo phòng, vào bằng mã (REST + WebSocket) |
+| `/speaking/history` | `SpeakingHistoryPage` | `speaking/pages/` | Lịch sử phòng luyện nói đã rời: tổng kết, lọc, phân trang và vào lại phòng còn mở |
+| `/speaking/room/:code` | `SpeakingRoomPage` | `speaking/pages/` | Phòng luyện nói (WebSocket; WebRTC audio ở FE2) |
 | `/community` | `CommunityFeedPage` | `community/pages/` | Feed cộng đồng (Bảng tin) |
 | `/community/groups` | `PostGroupPage` | `community/pages/` | Danh sách nhóm bài viết cộng đồng |
 | `/community/my-posts` | `CommunityMyPostsPage` | `community/pages/` | Bài viết của tôi |
 | `/community/posts/:postId` | `PostDetailPage` | `community/pages/` | Chi tiết bài viết từ Community Feed và My Feed |
 | `/gamification` | `LeaderboardPage` | `gamification/pages/` | Bảng xếp hạng + XP |
 | `/progress` | `ProgressPage` | `progress/pages/` | Tiến độ học tập cá nhân |
-| `/premium` | `PremiumPage` | `premium/pages/` | Gói Premium + thanh toán |
 | `/premium/my-subscription` | `MySubscriptionPage` | `premium/pages/` | Gói Premium của tôi |
-| `/notification` | `NotificationPage` | _(chưa có module)_ | Xem ghi chú bên dưới |
-| `/profile` | `ProfilePage` | `user/pages/` | Trang cá nhân (own) |
+| `/reports` | `ReportPage` | `report/pages/` | Danh sách báo cáo của tôi |
+| `/profile` | `MyProfilePage` | `user/pages/` | Trang cá nhân (own) |
 | `/profile/:userId` | `UserProfilePage` | `user/pages/` | Trang cá nhân người dùng khác |
 
 ### 1.3 Admin Routes (Cần đăng nhập — role: ADMIN)
@@ -63,7 +68,7 @@
 | `/admin/lessons/:lessonId/edit` | `AdminLessonEditPage` | `admin/pages/lesson/` | Sửa bài học |
 | `/admin/flashcards` | `AdminFlashcardListPage` | `admin/pages/flashcard/` | Quản lý flashcard |
 | `/admin/vocabulary` | `AdminVocabularyListPage` | `admin/pages/vocabulary/` | Quản lý từ vựng |
-| `/admin/premium` | `AdminPremiumPage` | `admin/pages/premium/` | Quản lý gói Premium |
+| `/admin/premium` | `AdminPremiumListPage` | `admin/pages/premium/` | Quản lý gói Premium |
 | `/admin/reports` | `AdminReportListPage` | `admin/pages/report/` | Xử lý báo cáo vi phạm |
 | `/admin/community` | `AdminCommunityPage` | `admin/pages/community/` | Kiểm duyệt cộng đồng |
 
@@ -114,17 +119,10 @@ User role USER + /admin/* → navigate('/dashboard')
 
 ### 3.1 Public Paths (không redirect khi chưa đăng nhập)
 
-```js
-// Auth-only: Chưa đăng nhập truy cập được; nếu đã đăng nhập thì tự chuyển hướng sang /dashboard (hoặc /admin)
-const PUBLIC_PATHS = [
-  '/login', '/signup', '/account-verification', '/reset-password'
-]
-
-// Shared public: Xem được cả khi chưa đăng nhập và đã đăng nhập (không redirect đi đâu khi đã đăng nhập)
-const SHARED_PUBLIC_PATHS = [
-  '/', '/decks'
-]
-```
+- `AUTH_PATHS` chứa các route xác thực; user đã đăng nhập được chuyển sang dashboard phù hợp role.
+- `PRIVATE_USER_PATHS` chứa các route cần đăng nhập role USER.
+- Các route khác, bao gồm `/premium`, được truy cập công khai với khách và USER. `/premium/my-subscription` vẫn nằm trong `PRIVATE_USER_PATHS`.
+- Guard quản trị chung vẫn chuyển ADMIN khỏi các route không thuộc `/admin/*`.
 
 ---
 
@@ -141,7 +139,7 @@ const SHARED_PUBLIC_PATHS = [
 ### 5.1 Quy trình
 
 1. **Thêm path và render page** vào đúng nhóm trong `renderContent()` của `App.jsx`
-2. **Cập nhật `PUBLIC_PATHS`** nếu là public route
+2. Với route auth-only, cập nhật `AUTH_PATHS`; route public không thêm vào `PRIVATE_USER_PATHS`
 3. **Cập nhật `PRIVATE_USER_PATHS`** nếu là private route (để route guard biết)
 4. **Tạo page component** trong đúng module: `modules/moduleName/pages/PageName.jsx`
 5. **Tạo CSS file** cùng thư mục: `modules/moduleName/pages/PageName.css`
@@ -156,7 +154,7 @@ const SHARED_PUBLIC_PATHS = [
 
 ### 5.3 Không được làm
 
-- KHÔNG dùng React Router — thêm route bằng switch/case hoặc regex trong `renderRoute()`
+- KHÔNG dùng React Router — thêm route bằng switch/case hoặc regex trong `renderContent()`
 - KHÔNG navigate trực tiếp trong component — luôn nhận `onNavigate` prop
 - KHÔNG tạo route trùng lặp với route đã có
 

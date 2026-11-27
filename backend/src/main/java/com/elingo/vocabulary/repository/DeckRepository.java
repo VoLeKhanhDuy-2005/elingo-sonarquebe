@@ -1,8 +1,13 @@
 package com.elingo.vocabulary.repository;
 
+import com.elingo.vocabulary.dto.projection.OwnerTypeCountProjection;
+import com.elingo.vocabulary.dto.projection.PremiumCountProjection;
+import com.elingo.vocabulary.dto.projection.StatusCountProjection;
+import com.elingo.vocabulary.dto.projection.TopDeckProjection;
 import com.elingo.vocabulary.entity.Deck;
 import com.elingo.vocabulary.entity.DeckStatus;
 import com.elingo.vocabulary.entity.OwnerType;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -19,6 +24,10 @@ public interface DeckRepository extends JpaRepository<Deck, Long>, JpaSpecificat
         Long getOwnerId();
         Boolean getIsPremium();
     }
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Deck d where d.id = :id")
+    Optional<Deck> findByIdForUpdate(@Param("id") Long id);
 
     long countByOwnerTypeAndOwnerId(OwnerType ownerType, Long ownerId);
 
@@ -61,5 +70,31 @@ public interface DeckRepository extends JpaRepository<Deck, Long>, JpaSpecificat
     @Modifying
     @Query("update Deck d set d.topicCount = d.topicCount + :delta where d.id = :id")
     void adjustTopicCount(@Param("id") Long id, @Param("delta") int delta);
+
+    @Query("SELECT d.status AS status, COUNT(d.id) AS countVal FROM Deck d GROUP BY d.status")
+    List<StatusCountProjection> countDecksByStatus();
+
+    @Query("SELECT d.ownerType AS ownerType, COUNT(d.id) AS countVal FROM Deck d GROUP BY d.ownerType")
+    List<OwnerTypeCountProjection> countDecksByOwnerType();
+
+    @Query("SELECT d.isPremium AS isPremium, COUNT(d.id) AS countVal FROM Deck d GROUP BY d.isPremium")
+    List<PremiumCountProjection> countDecksByPremium();
+
+    @Query(value = """
+            SELECT d.id AS deckId, d.title AS title, d.cover_image_url AS coverImageUrl,
+                   d.status AS status, d.owner_type AS ownerType, d.is_premium AS isPremium,
+                   COUNT(DISTINCT ucs.user_id) AS learnerCount
+            FROM decks d
+            LEFT JOIN cards c ON c.deck_id = d.id
+            LEFT JOIN user_card_states ucs ON ucs.card_id = c.id
+            WHERE d.owner_type = :ownerType
+            GROUP BY d.id, d.title, d.cover_image_url, d.status, d.owner_type, d.is_premium
+            ORDER BY learnerCount DESC, d.id ASC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<TopDeckProjection> findTopDecksByOwnerType(
+            @Param("ownerType") String ownerType,
+            @Param("limit") int limit
+    );
 }
 

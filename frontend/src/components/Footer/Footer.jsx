@@ -34,16 +34,6 @@ function Footer({ onNavigate }) {
               {t('footer.lessons')}
             </a>
             <a
-              href="/flashcard"
-              className="footer__nav-link"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNav('/flashcard');
-              }}
-            >
-              Flashcard
-            </a>
-            <a
               href="/decks"
               className="footer__nav-link"
               onClick={(e) => {
@@ -102,14 +92,14 @@ function Footer({ onNavigate }) {
               {t('footer.profileLink')}
             </a>
             <a
-              href="/progress"
+              href="/gamification"
               className="footer__nav-link"
               onClick={(e) => {
                 e.preventDefault();
-                handleNav('/progress');
+                handleNav('/gamification');
               }}
             >
-              {t('footer.progressLink')}
+              {t('footer.gamificationLink')}
             </a>
             <a
               href="/premium"

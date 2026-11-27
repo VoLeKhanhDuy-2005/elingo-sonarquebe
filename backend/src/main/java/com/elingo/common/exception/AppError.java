@@ -14,6 +14,8 @@ public enum AppError {
     // ==========================================
     UNCATEGORIZED_EXCEPTION("UNCATEGORIZED_EXCEPTION", "Uncategorized exception", HttpStatus.INTERNAL_SERVER_ERROR),
     INVALID_REQUEST("INVALID_REQUEST", "Invalid request parameters or body", HttpStatus.BAD_REQUEST),
+    INVALID_SORT("INVALID_SORT", "Invalid sort field", HttpStatus.BAD_REQUEST),
+    INVALID_DATE_RANGE("INVALID_DATE_RANGE", "Invalid date range or exceeds maximum allowed limit", HttpStatus.BAD_REQUEST),
     SLUG_INVALID("SLUG_INVALID", "Slug must contain only lowercase letters, numbers and hyphens", HttpStatus.BAD_REQUEST),
     RESOURCE_NOT_FOUND("RESOURCE_NOT_FOUND", "Requested resource not found", HttpStatus.NOT_FOUND),
     METHOD_NOT_SUPPORTED("METHOD_NOT_SUPPORTED", "HTTP request method is not supported", HttpStatus.METHOD_NOT_ALLOWED),
@@ -52,6 +54,9 @@ public enum AppError {
     USER_NOT_FOUND("USER_NOT_FOUND", "User not found", HttpStatus.NOT_FOUND),
     USER_INACTIVE("USER_INACTIVE", "User account is currently inactive", HttpStatus.FORBIDDEN),
     USER_BANNED("USER_BANNED", "User account has been banned", HttpStatus.FORBIDDEN),
+    USER_ALREADY_ACTIVE("USER_ALREADY_ACTIVE", "User account is already active", HttpStatus.BAD_REQUEST),
+    CANNOT_MODIFY_SELF("CANNOT_MODIFY_SELF", "You cannot perform this action on your own account", HttpStatus.BAD_REQUEST),
+    CANNOT_MODIFY_ADMIN("CANNOT_MODIFY_ADMIN", "Cannot perform administrative actions on another administrator", HttpStatus.BAD_REQUEST),
     USER_NOT_VERIFIED("USER_NOT_VERIFIED", "Email has not been verified yet", HttpStatus.FORBIDDEN),
     REFRESH_TOKEN_INVALID("REFRESH_TOKEN_INVALID", "Refresh token token is missing, invalid or expired", HttpStatus.UNAUTHORIZED),
     PASSWORD_INCORRECT("PASSWORD_INCORRECT", "Password is incorrect", HttpStatus.BAD_REQUEST),
@@ -66,6 +71,9 @@ public enum AppError {
     // 3. Vocabulary (Bộ từ vựng, Chủ đề, Thẻ từ)
     // ==========================================
     DECK_LIMIT_EXCEEDED("DECK_LIMIT_EXCEEDED", "You have reached the maximum decks per user", HttpStatus.BAD_REQUEST),
+    CANNOT_DELETE_SYSTEM_DECK("CANNOT_DELETE_SYSTEM_DECK", "System decks cannot be permanently deleted, archive instead", HttpStatus.BAD_REQUEST),
+    DECK_NOT_USER("DECK_NOT_USER", "Only user-created decks can be deleted via this endpoint", HttpStatus.BAD_REQUEST),
+    DECK_NOT_SYSTEM("DECK_NOT_SYSTEM", "This operation is only applicable to system decks", HttpStatus.BAD_REQUEST),
     TOPIC_LIMIT_EXCEEDED("TOPIC_LIMIT_EXCEEDED", "You have reached the maximum topics per deck", HttpStatus.BAD_REQUEST),
     CARD_LIMIT_EXCEEDED("CARD_LIMIT_EXCEEDED", "You have reached the maximum cards per topic", HttpStatus.BAD_REQUEST),
     DECK_NOT_FOUND("DECK_NOT_FOUND", "Vocabulary deck not found or has not been published", HttpStatus.NOT_FOUND),
@@ -85,6 +93,8 @@ public enum AppError {
     DUPLICATE_CARD_PHONETIC_LOCALE("DUPLICATE_CARD_PHONETIC_LOCALE", "Duplicate phonetic locale in this card", HttpStatus.BAD_REQUEST),
     TAG_NOT_FOUND("TAG_NOT_FOUND", "Tag not found", HttpStatus.NOT_FOUND),
     TAG_CODE_EXISTED("TAG_CODE_EXISTED", "Tag code already exists", HttpStatus.BAD_REQUEST),
+    TAG_LABEL_EXISTED("TAG_LABEL_EXISTED", "Tag label already exists", HttpStatus.BAD_REQUEST),
+    TAG_IN_USE("TAG_IN_USE", "Tag is currently referenced by decks or lessons and cannot be deleted", HttpStatus.BAD_REQUEST),
     TAG_CODE_INVALID("TAG_CODE_INVALID", "Tag code must not exceed 100 characters", HttpStatus.BAD_REQUEST),
     CEFR_LEVEL_NOT_FOUND("CEFR_LEVEL_NOT_FOUND", "CEFR level not found", HttpStatus.NOT_FOUND),
     CEFR_LEVEL_CODE_EXISTED("CEFR_LEVEL_CODE_EXISTED", "CEFR level code already exists", HttpStatus.BAD_REQUEST),
@@ -121,6 +131,9 @@ public enum AppError {
     PROGRESS_UPDATE_CONFLICT("PROGRESS_UPDATE_CONFLICT", "Progress was updated concurrently, please retry", HttpStatus.CONFLICT),
     SOURCE_URL_INVALID("SOURCE_URL_INVALID", "Source url must be a valid YouTube link", HttpStatus.BAD_REQUEST),
     LESSON_PUBLISHED_FAILED("LESSON_PUBLISHED_FAILED", "Cannot publish a lesson without segments", HttpStatus.BAD_REQUEST),
+    SEGMENT_EXCEEDS_DURATION("SEGMENT_EXCEEDS_DURATION", "Segment end time exceeds the lesson duration", HttpStatus.BAD_REQUEST),
+    SEGMENT_TIME_OVERLAP("SEGMENT_TIME_OVERLAP", "Segment time range overlaps with another segment", HttpStatus.BAD_REQUEST),
+    LESSON_SEGMENT_REQUIRED("LESSON_SEGMENT_REQUIRED", "A published lesson must keep at least one segment", HttpStatus.BAD_REQUEST),
 
     // ==========================================
     // 6. Battle (Đấu trường từ vựng 1vs1)
@@ -149,6 +162,10 @@ public enum AppError {
     SPEAKING_ROOM_CLOSED("SPEAKING_ROOM_CLOSED", "Speaking room is already closed", HttpStatus.BAD_REQUEST),
     SPEAKING_ROOM_ACCESS_DENIED("SPEAKING_ROOM_ACCESS_DENIED", "You do not have access to this speaking room", HttpStatus.FORBIDDEN),
     SPEAKING_PARTICIPANT_NOT_FOUND("SPEAKING_PARTICIPANT_NOT_FOUND", "Participant not found in speaking room", HttpStatus.NOT_FOUND),
+    SPEAKING_ALREADY_IN_ROOM("SPEAKING_ALREADY_IN_ROOM", "You are already in another speaking room", HttpStatus.BAD_REQUEST),
+    SPEAKING_SIGNAL_INVALID("SPEAKING_SIGNAL_INVALID", "Invalid speaking signal", HttpStatus.BAD_REQUEST),
+    SPEAKING_NOT_HOST("SPEAKING_NOT_HOST", "Only the room host can do this", HttpStatus.FORBIDDEN),
+    SPEAKING_BANNED("SPEAKING_BANNED", "You were removed from this room by the host", HttpStatus.FORBIDDEN),
     HOST_CANNOT_LEAVE_WITHOUT_CLOSING("HOST_CANNOT_LEAVE_WITHOUT_CLOSING", "Host must end the room or transfer host role before leaving", HttpStatus.BAD_REQUEST),
 
     // ==========================================
@@ -162,6 +179,11 @@ public enum AppError {
     BADGE_ALREADY_EARNED("BADGE_ALREADY_EARNED", "User has already earned this badge", HttpStatus.BAD_REQUEST),
     LEADERBOARD_SNAPSHOT_NOT_FOUND("LEADERBOARD_SNAPSHOT_NOT_FOUND", "Leaderboard snapshot not found", HttpStatus.NOT_FOUND),
     INVALID_XP_AMOUNT("INVALID_XP_AMOUNT", "XP adjustment amount must not be zero", HttpStatus.BAD_REQUEST),
+    DEFAULT_LEVEL_CANNOT_BE_MODIFIED("DEFAULT_LEVEL_CANNOT_BE_MODIFIED", "Level 1 with required XP 0 is default and cannot be modified or deleted", HttpStatus.BAD_REQUEST),
+    LEVEL_ALREADY_EXISTS("LEVEL_ALREADY_EXISTS", "Level number already exists", HttpStatus.BAD_REQUEST),
+    LEVEL_REQUIRED_XP_INVALID("LEVEL_REQUIRED_XP_INVALID", "Required XP must be positive and follow level progression", HttpStatus.BAD_REQUEST),
+    LEVEL_HAS_ACTIVE_USERS("LEVEL_HAS_ACTIVE_USERS", "Cannot delete level because users are currently at this level", HttpStatus.BAD_REQUEST),
+    BADGE_IN_USE("BADGE_IN_USE", "Badge has already been earned by users and cannot be deleted", HttpStatus.BAD_REQUEST),
 
     // ==========================================
     // 9. Community (Bài viết, Bình luận, Tương tác)
@@ -187,6 +209,7 @@ public enum AppError {
     REPORT_ALREADY_RESOLVED("REPORT_ALREADY_RESOLVED", "Report has already been resolved or rejected", HttpStatus.BAD_REQUEST),
     CANNOT_REPORT_SELF("CANNOT_REPORT_SELF", "You cannot report your own account or content", HttpStatus.BAD_REQUEST),
     REPORT_TARGET_NOT_FOUND("REPORT_TARGET_NOT_FOUND", "The target entity being reported does not exist", HttpStatus.NOT_FOUND),
+    REPORT_ALREADY_EXISTS("REPORT_ALREADY_EXISTS", "You have already submitted a pending report for this item", HttpStatus.BAD_REQUEST),
 
     // ==========================================
     // 11. Premium & Payment (Gói Premium & Thanh toán)
@@ -202,12 +225,22 @@ public enum AppError {
     PAYMENT_AMOUNT_MISMATCH("PAYMENT_AMOUNT_MISMATCH", "Paid amount does not match transaction plan price", HttpStatus.BAD_REQUEST),
     USER_SUBSCRIPTION_NOT_FOUND("USER_SUBSCRIPTION_NOT_FOUND", "User subscription not found", HttpStatus.NOT_FOUND),
     ACTIVE_SUBSCRIPTION_ALREADY_EXISTS("ACTIVE_SUBSCRIPTION_ALREADY_EXISTS", "User already has an active premium subscription", HttpStatus.BAD_REQUEST),
+    PREMIUM_PLAN_ALREADY_ACTIVE("PREMIUM_PLAN_ALREADY_ACTIVE", "Premium plan is already active", HttpStatus.BAD_REQUEST),
+    PREMIUM_PLAN_ALREADY_INACTIVE("PREMIUM_PLAN_ALREADY_INACTIVE", "Premium plan is already inactive", HttpStatus.BAD_REQUEST),
+    PAYMENT_TRANSACTION_NOT_REFUNDABLE("PAYMENT_TRANSACTION_NOT_REFUNDABLE", "Only successful payment transactions can be refunded", HttpStatus.BAD_REQUEST),
+    PAYMENT_WEBHOOK_LOG_NOT_FOUND("PAYMENT_WEBHOOK_LOG_NOT_FOUND", "Payment webhook log not found", HttpStatus.NOT_FOUND),
 
     // ==========================================
     // 12. Notification (Thông báo)
     // ==========================================
     NOTIFICATION_NOT_FOUND("NOTIFICATION_NOT_FOUND", "Notification not found", HttpStatus.NOT_FOUND),
     NOTIFICATION_ACCESS_DENIED("NOTIFICATION_ACCESS_DENIED", "You do not have permission to access this notification", HttpStatus.FORBIDDEN),
+
+    // ==========================================
+    // 13. System Config (Cấu hình hệ thống)
+    // ==========================================
+    SYSTEM_CONFIG_NOT_FOUND("SYSTEM_CONFIG_NOT_FOUND", "System config not found", HttpStatus.NOT_FOUND),
+    SYSTEM_CONFIG_VALUE_INVALID("SYSTEM_CONFIG_VALUE_INVALID", "Invalid system config value", HttpStatus.BAD_REQUEST),
     ;
 
     private final String code;

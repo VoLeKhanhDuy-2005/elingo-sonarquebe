@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useNotification } from '../../modules/notification/context/NotificationContext';
+import NotificationPanel from '../../modules/notification/components/NotificationPanel/NotificationPanel';
 import './Header.css';
 
 /**
@@ -15,9 +17,12 @@ function Header({ onNavigate, currentPath }) {
   const { t, i18n } = useTranslation('nav');
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { unreadCount, loadInitialNotifications } = useNotification();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const notificationRef = useRef(null);
   const [openDropdownKey, setOpenDropdownKey] = useState(null);
   const [mobileExpandedKeys, setMobileExpandedKeys] = useState({});
   const navContainerRef = useRef(null);
@@ -91,6 +96,9 @@ function Header({ onNavigate, currentPath }) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsUserDropdownOpen(false);
       }
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setIsNotificationOpen(false);
+      }
       if (navContainerRef.current && !navContainerRef.current.contains(event.target)) {
         setOpenDropdownKey(null);
       }
@@ -98,6 +106,7 @@ function Header({ onNavigate, currentPath }) {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         setIsUserDropdownOpen(false);
+        setIsNotificationOpen(false);
         setOpenDropdownKey(null);
       }
     };
@@ -112,7 +121,8 @@ function Header({ onNavigate, currentPath }) {
 
   // ── Đóng mobile menu & dropdown khi navigate ──
   useEffect(() => {
-    setIsMenuOpen(false);
+    setIsMobileMenuOpen(false);
+    setIsNotificationOpen(false);
     if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     setOpenDropdownKey(null);
   }, [currentPath]);
@@ -131,7 +141,7 @@ function Header({ onNavigate, currentPath }) {
   };
 
   const handleNav = (path) => {
-    setIsMenuOpen(false);
+    setIsMobileMenuOpen(false);
     setOpenDropdownKey(null);
     if (onNavigate) onNavigate(path);
   };
@@ -201,7 +211,7 @@ function Header({ onNavigate, currentPath }) {
 
   return (
     <header
-      className={`header ${currentPath !== '/' ? 'header--auth' : ''} ${isMenuOpen ? 'header--open' : ''} glass-capsule glass-sheen`}
+      className={`header ${currentPath !== '/' ? 'header--auth' : ''} ${isMobileMenuOpen ? 'header--open' : ''} glass-capsule glass-sheen`}
     >
       <div className="header__inner container">
         {/* Brand */}
@@ -309,10 +319,34 @@ function Header({ onNavigate, currentPath }) {
 
           {user ? (
             <>
-              {/* Notification bell */}
-              <button type="button" className="btn-icon" onClick={() => handleNav('/notification')}>
-                <span className="material-symbols-outlined">notifications</span>
-              </button>
+              {/* Notification bell & panel */}
+              <div className="header__notification-wrapper" ref={notificationRef}>
+                <button
+                  type="button"
+                  className="btn-icon header__notification-btn"
+                  onClick={() => {
+                    const nextState = !isNotificationOpen;
+                    setIsNotificationOpen(nextState);
+                    if (nextState && loadInitialNotifications) {
+                      loadInitialNotifications();
+                    }
+                  }}
+                >
+                  <span className="material-symbols-outlined">notifications</span>
+                  {unreadCount > 0 && (
+                    <span className="header__notification-badge badge badge--primary">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {isNotificationOpen && (
+                  <NotificationPanel
+                    onClose={() => setIsNotificationOpen(false)}
+                    onNavigate={handleNav}
+                  />
+                )}
+              </div>
 
               {/* User dropdown */}
               <div className="header__user-dropdown" ref={dropdownRef}>
@@ -338,7 +372,7 @@ function Header({ onNavigate, currentPath }) {
                     <hr className="header__dropdown-divider" />
                     <a
                       href="/profile"
-                      className="header__dropdown-item"
+                      className={`header__dropdown-item${currentPath === '/profile' ? ' header__dropdown-item--active' : ''}`}
                       onClick={(e) => {
                         e.preventDefault();
                         setIsUserDropdownOpen(false);
@@ -349,20 +383,20 @@ function Header({ onNavigate, currentPath }) {
                       {t('profile')}
                     </a>
                     <a
-                      href="/progress"
-                      className="header__dropdown-item"
+                      href="/gamification"
+                      className={`header__dropdown-item${currentPath === '/gamification' ? ' header__dropdown-item--active' : ''}`}
                       onClick={(e) => {
                         e.preventDefault();
                         setIsUserDropdownOpen(false);
-                        handleNav('/progress');
+                        handleNav('/gamification');
                       }}
                     >
                       <span className="material-symbols-outlined">insights</span>
-                      {t('progress')}
+                      {t('gamification')}
                     </a>
                     <a
                       href="/premium"
-                      className="header__dropdown-item"
+                      className={`header__dropdown-item${currentPath === '/premium' ? ' header__dropdown-item--active' : ''}`}
                       onClick={(e) => {
                         e.preventDefault();
                         setIsUserDropdownOpen(false);
@@ -372,6 +406,33 @@ function Header({ onNavigate, currentPath }) {
                       <span className="material-symbols-outlined">star</span>
                       {t('premium')}
                     </a>
+                    <a
+                      href="/reports"
+                      className={`header__dropdown-item${currentPath === '/reports' ? ' header__dropdown-item--active' : ''}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setIsUserDropdownOpen(false);
+                        handleNav('/reports');
+                      }}
+                    >
+                      <span className="material-symbols-outlined">flag</span>
+                      {t('myReports')}
+                    </a>
+                    {user?.role === 'ADMIN' && (
+                      <a
+                        href="/admin"
+                        className="header__dropdown-item"
+                        style={{ color: 'var(--color-primary)', fontWeight: 600 }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setIsUserDropdownOpen(false);
+                          handleNav('/admin');
+                        }}
+                      >
+                        <span className="material-symbols-outlined">admin_panel_settings</span>
+                        {t('adminPortal')}
+                      </a>
+                    )}
                     <hr className="header__dropdown-divider" />
                     <button
                       type="button"
@@ -426,15 +487,15 @@ function Header({ onNavigate, currentPath }) {
           <button
             type="button"
             className="header__hamburger btn-icon"
-            onClick={() => setIsMenuOpen((prev) => !prev)}
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
           >
-            <span className="material-symbols-outlined">{isMenuOpen ? 'close' : 'menu'}</span>
+            <span className="material-symbols-outlined">{isMobileMenuOpen ? 'close' : 'menu'}</span>
           </button>
         </div>
       </div>
 
       {/* Mobile Navigation */}
-      {isMenuOpen && (
+      {isMobileMenuOpen && (
         <nav className="header__mobile-nav glass-capsule">
           {USER_NAV_ITEMS.map((item) => {
             const itemIsActive = isItemActive(item);

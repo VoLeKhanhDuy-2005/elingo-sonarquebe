@@ -15,6 +15,11 @@ spring:
           auth: true # Bật tính năng xác thực người dùng (phải cung cấp username, password)
           starttls:
             enable: true # Bật cơ chế bảo mật STARTTLS (kết nối mã hóa an toàn (TLS))
+  data:
+    web:
+      pageable:
+        one-indexed-parameters: true
+        max-page-size: 100
 
 jwt:
   access-token-time: 15 # minute
@@ -29,6 +34,36 @@ springdoc:
     operations-sorter: alpha
 
 app:
+  mail:
+    from: "Elingo <no-reply@elingo.pro>"
+  thread-pool:
+    scheduler:
+      default-pool-size: 2
+      battle-pool-size: 2
+      speaking-pool-size: 2
+    async:
+      app:
+        core-pool-size: 2
+        max-pool-size: 4
+        queue-capacity: 200
+      email:
+        core-pool-size: 1
+        max-pool-size: 2
+        queue-capacity: 50
+      gamification:
+        core-pool-size: 1
+        max-pool-size: 2
+        queue-capacity: 100
+  community:
+    moderation:
+      scheduler:
+        fixed-delay-seconds: 30
+        batch-size: 5
+        maxAttempts: 3
+      policy:
+        auto-reject-threshold: 0.7
+        review-threshold: 0.5
+        video-max-frames: 12
   otp:
     expiration-minutes: 15
   flashcard:
@@ -44,16 +79,6 @@ app:
       max-decks-per-user: 5
       max-topics-per-deck: 15
       max-cards-per-topic: 50
-  gamification:
-    rules:
-      FLASHCARD_REVIEW:   { xp: 2,  daily-limit: 100 }
-      LESSON_DICTATION:   { xp: 20, daily-limit: 10 }
-      SEGMENT_DICTATION:  { xp: 3,  daily-limit: 50 }
-      LESSON_SHADOWING:   { xp: 20, daily-limit: 10 }
-      SEGMENT_SHADOWING:  { xp: 3,  daily-limit: 50 }
-      BATTLE_WIN:         { xp: 30, daily-limit: 10 }
-      BATTLE_LOSE:        { xp: 10, daily-limit: 10 }
-      DAILY_CHECKIN:      { xp: 5,  daily-limit: 1 }
   lesson:
     dictation-pass-score: 60
     shadowing-pass-score: 55
@@ -63,6 +88,7 @@ app:
     scheduler:
       expire-cron: 0 0 * * * *
       cancel-tx-cron: 0 */30 * * * *
+      expiring-cron: 0 0 8 * * *
   battle:
     total-rounds: 10
     question-time-ms: 15000
@@ -74,3 +100,13 @@ app:
     min-correct-for-xp: 3
     min-cards-required: 10
     answer-grace-ms: 300
+  speaking:
+    default-max-participants: 4
+    max-participants-limit: 4
+    signal-max-payload-bytes: 6144
+    reconnect-grace-ms: 20000
+    host-reconnect-grace-ms: 300000
+    waiting-room-ttl-ms: 900000
+    cleanup-interval-ms: 60000
+    stun-urls:
+      - stun:stun.l.google.com:19302
